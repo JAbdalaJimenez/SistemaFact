@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { getQuoteByPublicToken } from "@/lib/services";
 import { formatCurrencyARS, formatDate } from "@/lib/types";
 import { PublicQuoteClient } from "./client";
@@ -67,15 +68,21 @@ export default async function PublicQuotePage({ params }: Props) {
             {/* LADO IZQUIERDO: INSTALADOR MATRICULADO ERSEP */}
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-[#1E293B] border border-[#C5A059]/40 flex items-center justify-center">
-                  <Zap className="w-5 h-5 fill-[#C5A059] stroke-[#C5A059]" />
+                <div className="w-12 h-12 rounded-xl bg-[#1E293B] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0">
+                  <Image
+                    src="/logo-icon.png"
+                    alt="ElectroCba"
+                    width={44}
+                    height={44}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                     {quote.organization?.name || "ElectroCba"}
                   </h1>
-                  <p className="text-[11px] uppercase tracking-widest text-slate-400 font-medium">
-                    Ingeniería e Instalaciones Eléctricas Habilitadas
+                  <p className="text-[11px] uppercase tracking-widest text-[#C5A059] font-semibold">
+                    Ingeniería & Servicios Técnicos
                   </p>
                 </div>
               </div>

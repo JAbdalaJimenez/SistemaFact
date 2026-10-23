@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import prisma from "./db";
-import { getOrganization } from "./services";
+import { getOrganization, isDatabaseOnline } from "./services";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
@@ -57,28 +57,31 @@ export async function getSession(): Promise<SessionUser | null> {
  * Autentica usuario por email y contraseña contra PostgreSQL o fallback
  */
 export async function authenticate(email: string, passwordPlain: string): Promise<SessionUser | null> {
-  try {
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
-      include: { organization: true },
-    });
+  const online = await isDatabaseOnline();
+  if (online) {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+        include: { organization: true },
+      });
 
-    if (user) {
-      const isValid = await bcrypt.compare(passwordPlain, user.password);
-      if (isValid) {
-        return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role as "OWNER" | "MEMBER",
-          organizationId: user.organizationId,
-          organizationName: user.organization.name,
-          ersepLicense: user.organization.ersepLicense || "ERSeP Cat. III - N° 14892",
-        };
+      if (user) {
+        const isValid = await bcrypt.compare(passwordPlain, user.password);
+        if (isValid) {
+          return {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role as "OWNER" | "MEMBER",
+            organizationId: user.organizationId,
+            organizationName: user.organization.name,
+            ersepLicense: user.organization.ersepLicense || "ERSeP Cat. III - N° 14892",
+          };
+        }
       }
+    } catch (err) {
+      console.warn("Fallback auth check:", err);
     }
-  } catch (err) {
-    console.warn("Fallback auth check:", err);
   }
 
   // Fallback demo credentials si la base de datos estuviera desconectada

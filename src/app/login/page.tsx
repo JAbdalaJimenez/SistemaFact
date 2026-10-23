@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Zap,
@@ -19,7 +20,12 @@ import {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const [callbackUrl, setCallbackUrl] = useState("/dashboard");
+
+  useEffect(() => {
+    const cb = searchParams.get("callbackUrl");
+    if (cb) setCallbackUrl(cb);
+  }, [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -83,9 +89,16 @@ function LoginContent() {
     <div className="min-h-[85vh] flex flex-col items-center justify-center py-6 px-4 font-sans">
       <div className="w-full max-w-[420px] bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-[#E2E8F0] space-y-6">
         {/* LOGO Y MEMBRETE */}
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 bg-[#0F172A] text-white rounded-xl flex items-center justify-center mx-auto shadow-sm border border-[#1E293B]">
-            <Zap className="w-6 h-6 fill-[#C5A059] stroke-[#C5A059]" />
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <Image
+              src="/logo-full.png"
+              alt="ElectroCba - Ingeniería & Servicios Técnicos"
+              width={260}
+              height={55}
+              className="h-12 w-auto object-contain"
+              priority
+            />
           </div>
 
           <div>
@@ -93,10 +106,7 @@ function LoginContent() {
               <ShieldCheck className="w-3.5 h-3.5 text-[#9A6E24]" />
               <span className="tabular-nums">ERSeP Cat. III • Mat. 14892</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#0F172A] tracking-tight mt-1.5">
-              ElectroCba
-            </h1>
-            <p className="text-xs text-[#64748B]">
+            <p className="text-xs text-[#64748B] mt-2">
               Plataforma Ejecutiva para Instaladores Electricistas de Córdoba
             </p>
           </div>
@@ -135,9 +145,11 @@ function LoginContent() {
               <input
                 type="email"
                 required
+                autoComplete="username email"
                 placeholder="marcos@electrocba.com.ar"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                suppressHydrationWarning
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-medium text-[#0F172A] focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] outline-none"
               />
             </div>
@@ -152,9 +164,11 @@ function LoginContent() {
               <input
                 type={showPassword ? "text" : "password"}
                 required
+                autoComplete="current-password"
                 placeholder="••••••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                suppressHydrationWarning
                 className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-medium text-[#0F172A] focus:border-[#C5A059] focus:ring-1 focus:ring-[#C5A059] outline-none"
               />
               <button
@@ -196,16 +210,16 @@ function LoginContent() {
             <button
               type="button"
               onClick={() => handleQuickLogin("marcos@electrocba.com.ar", "electrocba2026")}
-              className="w-full p-2.5 bg-[#FAF8F5] hover:bg-[#F4EFE3] text-[#0F172A] rounded-xl text-xs font-semibold border border-[#EADFC7] flex items-center justify-between transition-colors cursor-pointer"
+              className="w-full p-2.5 bg-[#FAF8F5] hover:bg-[#F4EFE3] text-[#0F172A] rounded-xl text-xs font-semibold border border-[#EADFC7] flex items-center justify-between transition-colors cursor-pointer text-left"
             >
-              <div className="flex items-center space-x-2 text-left">
-                <UserCheck className="w-4 h-4 text-[#9A6E24]" />
-                <div>
-                  <p>Marcos Romero (Titular)</p>
-                  <p className="text-[10px] font-normal text-[#64748B]">Rol: OWNER • Acceso total</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold uppercase text-[#9A6E24] bg-white px-2 py-0.5 rounded border border-[#EADFC7] shadow-xs">
+              <span className="flex items-center space-x-2">
+                <UserCheck className="w-4 h-4 text-[#9A6E24] shrink-0" />
+                <span className="flex flex-col">
+                  <span className="font-semibold text-slate-800">Marcos Romero (Titular)</span>
+                  <span className="text-[10px] font-normal text-[#64748B]">Rol: OWNER • Acceso total</span>
+                </span>
+              </span>
+              <span className="text-[10px] font-bold uppercase text-[#9A6E24] bg-white px-2 py-0.5 rounded border border-[#EADFC7] shadow-xs shrink-0 ml-2">
                 Ingresar ➔
               </span>
             </button>
@@ -213,16 +227,16 @@ function LoginContent() {
             <button
               type="button"
               onClick={() => handleQuickLogin("tecnico@electrocba.com.ar", "tecnico2026")}
-              className="w-full p-2.5 bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-semibold border border-[#E2E8F0] flex items-center justify-between transition-colors cursor-pointer"
+              className="w-full p-2.5 bg-[#F8FAFC] hover:bg-slate-100 text-[#0F172A] rounded-xl text-xs font-semibold border border-[#E2E8F0] flex items-center justify-between transition-colors cursor-pointer text-left"
             >
-              <div className="flex items-center space-x-2 text-left">
-                <UserCheck className="w-4 h-4 text-slate-500" />
-                <div>
-                  <p>Nicolás Gómez (Técnico)</p>
-                  <p className="text-[10px] font-normal text-[#64748B]">Rol: MEMBER • Cuadrilla</p>
-                </div>
-              </div>
-              <span className="text-[10px] font-bold uppercase text-[#64748B] bg-white px-2 py-0.5 rounded border border-[#E2E8F0] shadow-xs">
+              <span className="flex items-center space-x-2">
+                <UserCheck className="w-4 h-4 text-slate-500 shrink-0" />
+                <span className="flex flex-col">
+                  <span className="font-semibold text-slate-800">Nicolás Gómez (Técnico)</span>
+                  <span className="text-[10px] font-normal text-[#64748B]">Rol: MEMBER • Cuadrilla</span>
+                </span>
+              </span>
+              <span className="text-[10px] font-bold uppercase text-[#64748B] bg-white px-2 py-0.5 rounded border border-[#E2E8F0] shadow-xs shrink-0 ml-2">
                 Ingresar ➔
               </span>
             </button>

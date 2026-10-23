@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQuotes, getQuoteByPublicToken } from "@/lib/services";
+import { getQuotes, getQuoteByPublicToken, isDatabaseOnline } from "@/lib/services";
 import { generateQuoteDocx } from "@/lib/docx-generator";
 import prisma from "@/lib/db";
 
@@ -13,20 +13,22 @@ export async function GET(req: NextRequest, { params }: Props) {
 
     let quote: any = null;
 
-    try {
-      quote = await prisma.quote.findFirst({
-        where: {
-          OR: [{ id }, { publicToken: id }],
-          deletedAt: null,
-        },
-        include: {
-          customer: true,
-          organization: true,
-          items: true,
-        },
-      });
-    } catch {
-      // Fallback
+    if (await isDatabaseOnline()) {
+      try {
+        quote = await prisma.quote.findFirst({
+          where: {
+            OR: [{ id }, { publicToken: id }],
+            deletedAt: null,
+          },
+          include: {
+            customer: true,
+            organization: true,
+            items: true,
+          },
+        });
+      } catch {
+        // Fallback
+      }
     }
 
     if (!quote) {

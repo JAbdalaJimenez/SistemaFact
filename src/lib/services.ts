@@ -1,6 +1,7 @@
 import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
+import net from "net";
 
 // Fallback Store en memoria para asegurar que la app funcione siempre
 interface InMemQuoteItem {
@@ -305,21 +306,77 @@ const fallbackStore = {
   ] as InMemPayment[],
 };
 
-// Intenta conectar a PostgreSQL mediante Prisma, con fallback inteligente si no hay BD activa
+let isDbReachable: boolean | null = null;
+let lastProbeTime = 0;
+const PROBE_INTERVAL_MS = 30000; // Sondea como máximo una vez cada 30s
+
+export async function isDatabaseOnline(): Promise<boolean> {
+  const now = Date.now();
+  if (isDbReachable !== null && now - lastProbeTime < PROBE_INTERVAL_MS) {
+    return isDbReachable;
+  }
+
+  const dbUrl = process.env.DATABASE_URL || "";
+  let host = "127.0.0.1";
+  let port = 5432;
+
+  try {
+    const match = dbUrl.match(/@([^:/]+)(?::(\d+))?/);
+    if (match) {
+      host = match[1] === "localhost" ? "127.0.0.1" : match[1];
+      if (match[2]) port = parseInt(match[2], 10);
+    }
+  } catch {
+    // ignorar
+  }
+
+  return new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const finalize = (status: boolean) => {
+      if (!settled) {
+        settled = true;
+        isDbReachable = status;
+        lastProbeTime = Date.now();
+        socket.destroy();
+        resolve(status);
+      }
+    };
+
+    socket.setTimeout(80);
+    socket.once("connect", () => finalize(true));
+    socket.once("timeout", () => finalize(false));
+    socket.once("error", () => finalize(false));
+
+    socket.connect(port, host);
+  });
+}
+
+// Intenta conectar a PostgreSQL mediante Prisma, con fallback instantáneo (0ms) si no hay BD activa
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promise<T> {
+  const online = await isDatabaseOnline();
+  if (!online) {
+    return await fallbackFn();
+  }
+
   try {
     return await fn();
   } catch (err: unknown) {
+    isDbReachable = false;
+    lastProbeTime = Date.now();
     const errorMsg = String(err);
     if (
       errorMsg.includes("Can't reach database server") ||
       errorMsg.includes("P1001") ||
       errorMsg.includes("connect ECONNREFUSED") ||
       errorMsg.includes("The table") ||
-      errorMsg.includes("does not exist")
+      errorMsg.includes("does not exist") ||
+      errorMsg.includes("InitializationError") ||
+      errorMsg.includes("PrismaClientInitializationError")
     ) {
-      // Fallback a memoria silencioso para experiencia de usuario ininterrumpida
+      // Fallback a memoria inmediato
       return await fallbackFn();
     }
     throw err;

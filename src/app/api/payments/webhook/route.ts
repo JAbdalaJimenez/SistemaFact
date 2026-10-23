@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMercadoPagoSignature } from "@/lib/mercadopago";
-import { recordPayment, convertQuoteToJob, getOrganization, getJobById } from "@/lib/services";
+import { recordPayment, convertQuoteToJob, getOrganization, getJobById, isDatabaseOnline } from "@/lib/services";
 import prisma from "@/lib/db";
 
 // Memoria rápida para idempotencia de eventos webhook
@@ -56,13 +56,23 @@ export async function POST(req: NextRequest) {
       }
 
       if (targetJobId && amount > 0) {
-        // Verificar en base de datos si ya existe el mpPaymentId
-        try {
-          const existingPayment = await prisma.payment.findFirst({
-            where: { mpPaymentId: dataId },
-          });
+        if (await isDatabaseOnline()) {
+          try {
+            const existingPayment = await prisma.payment.findFirst({
+              where: { mpPaymentId: dataId },
+            });
 
-          if (!existingPayment) {
+            if (!existingPayment) {
+              await recordPayment(org.id, {
+                jobId: targetJobId,
+                amount,
+                paymentMethod: "MERCADO_PAGO",
+                mpPaymentId: dataId,
+                notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
+              });
+              console.log(`✅ Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
+            }
+          } catch {
             await recordPayment(org.id, {
               jobId: targetJobId,
               amount,
@@ -70,10 +80,8 @@ export async function POST(req: NextRequest) {
               mpPaymentId: dataId,
               notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
             });
-            console.log(`✅ Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
           }
-        } catch {
-          // En caso de que se use el store en memoria
+        } else {
           await recordPayment(org.id, {
             jobId: targetJobId,
             amount,

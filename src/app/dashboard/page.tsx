@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   DollarSign,
   FileText,
@@ -39,12 +40,25 @@ export default async function DashboardPage() {
               </span>
               <span className="text-[11px] text-slate-400">Córdoba Capital</span>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-              {org.name}
-            </h1>
-            <p className="text-xs text-slate-400 flex items-center gap-1.5 font-normal">
-              <MapPin className="w-3.5 h-3.5 text-slate-500" /> {org.address} • {org.taxCondition || "Monotributo"}
-            </p>
+            <div className="flex items-center gap-3.5 pt-1">
+              <div className="w-12 h-12 rounded-xl bg-[#1E293B] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 shadow-inner">
+                <Image
+                  src="/logo-icon.png"
+                  alt="ElectroCba"
+                  width={42}
+                  height={42}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                  {org.name}
+                </h1>
+                <p className="text-xs text-slate-400 flex items-center gap-1.5 font-normal">
+                  <MapPin className="w-3.5 h-3.5 text-slate-500" /> {org.address} • {org.taxCondition || "Monotributo"}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t border-[#1E293B] sm:border-t-0">

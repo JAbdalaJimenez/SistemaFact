@@ -1,5 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { formatCurrencyARS, formatDate } from "./types";
+import fs from "fs";
+import path from "path";
 
 interface QuoteData {
   id: string;
@@ -55,19 +57,50 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
   const marginX = 40;
   let cursorY = height - 40;
 
+  // Cargar logotipo oficial de ElectroCba
+  let logoImage = null;
+  try {
+    const logoPath = path.join(process.cwd(), "public", "logo-full.png");
+    if (fs.existsSync(logoPath)) {
+      const logoBytes = fs.readFileSync(logoPath);
+      logoImage = await pdfDoc.embedPng(logoBytes);
+    }
+  } catch {
+    // fallback si no estuviera disponible
+  }
+
   // 1. CABECERA SUPERIOR Y MEMBRETE ERSEP
   page.drawRectangle({
     x: marginX,
     y: cursorY - 60,
     width: width - marginX * 2,
     height: 65,
-    color: primaryBlue,
+    color: rgb(15 / 255, 23 / 255, 42 / 255), // #0F172A Deep Obsidian
   });
+
+  // Franja decorativa dorada superior
+  page.drawRectangle({
+    x: marginX,
+    y: cursorY + 4,
+    width: width - marginX * 2,
+    height: 2,
+    color: rgb(197 / 255, 160 / 255, 89 / 255), // #C5A059 Warm Gold
+  });
+
+  if (logoImage) {
+    const logoDims = logoImage.scale(0.28);
+    page.drawImage(logoImage, {
+      x: width - marginX - logoDims.width - 12,
+      y: cursorY - 50,
+      width: logoDims.width,
+      height: logoDims.height,
+    });
+  }
 
   page.drawText(quote.organization.name || "ElectroCba - Soluciones Eléctricas", {
     x: marginX + 15,
     y: cursorY - 25,
-    size: 16,
+    size: 15,
     font: fontBold,
     color: rgb(1, 1, 1),
   });
