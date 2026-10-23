@@ -1,0 +1,221 @@
+// Prisma Schema para ElectroCba - SaaS Vertical para Electricistas en Córdoba, Argentina
+// Multi-tenant con Organization, soporte de Presupuestos, Órdenes de Trabajo, y Pagos con Mercado Pago
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  MEMBER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CONVERTED
+}
+
+enum JobStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  MERCADO_PAGO
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  FAILED
+}
+
+enum QuoteItemType {
+  LABOR      // Mano de obra calificada
+  MATERIALS  // Materiales normalizados con sello IRAM
+}
+
+model Organization {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  phone        String
+  email        String
+  currency     String    @default("ARS")
+  ersepLicense String?   // Matrícula ERSeP (Córdoba) ej: ERSeP Cat. III - N° 14892
+  cuit         String?   // CUIT ej: 20-33445566-9
+  taxCondition String    @default("Monotributo - Prestador de Servicios") // IVA
+  aliasCbu     String?   // Alias / CVU bancario para transferencias
+  address      String?   // Dirección legal / taller
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  users        User[]
+  customers    Customer[]
+  services     Service[]
+  quotes       Quote[]
+  jobs         Job[]
+  payments     Payment[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  email          String       @unique
+  password       String       @default("$2a$10$abcdefghijklmnopqrstuvwxyz1234567890") // Hash bcrypt
+  role           UserRole     @default(OWNER)
+  phone          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  phone          String       // Celular / WhatsApp formato argentino ej: +54 9 351 ...
+  address        String       // Calle y número
+  neighborhood   String       // Barrio de Córdoba: Nueva Córdoba, General Paz, Alta Córdoba, etc.
+  notes          String?      // Notas generales del cliente / historial
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?    // Soft-delete
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quotes         Quote[]
+  jobs           Job[]
+
+  @@index([organizationId])
+  @@index([neighborhood])
+  @@map("customers")
+}
+
+model Service {
+  id             String        @id @default(cuid())
+  organizationId String
+  title          String        // ej: "Instalación de Disyuntor Diferencial", "Boca de luz"
+  description    String?
+  defaultPrice   Int           // Monto en ARS
+  type           QuoteItemType @default(LABOR)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  deletedAt      DateTime?     // Soft-delete
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("services")
+}
+
+model Quote {
+  id                String       @id @default(cuid())
+  organizationId    String
+  customerId        String
+  publicToken       String       @unique @default(uuid()) // UUID único para visualización pública sin login
+  quoteNumber       String?      // ej: "EC-2026-001"
+  title             String?      // Título descriptivo ej: "Adecuación eléctrica tablero"
+  status            QuoteStatus  @default(DRAFT)
+  depositPercentage Int          @default(50) // Porcentaje de seña sugerido (50% por defecto)
+  validityDays      Int          @default(10) // Validez comercial (días)
+  expiresAt         DateTime?
+  totalAmount       Int          // Monto total en enteros/centavos ARS
+  notes             String?      // Cláusulas contractuales y notas
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?    // Soft-delete
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items             QuoteItem[]
+  job               Job?
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([publicToken])
+  @@map("quotes")
+}
+
+model QuoteItem {
+  id          String        @id @default(cuid())
+  quoteId     String
+  description String        // Tarea o material
+  itemType    QuoteItemType @default(LABOR) // LABOR o MATERIALS
+  quantity    Int           @default(1)
+  unitPrice   Int           // Precio unitario en ARS
+  subtotal    Int           // quantity * unitPrice en ARS
+
+  quote       Quote         @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@index([itemType])
+  @@map("quote_items")
+}
+
+model Job {
+  id             String       @id @default(cuid())
+  organizationId String
+  customerId     String
+  quoteId        String?      @unique // Opcional: puede nacer de un presupuesto aprobado
+  title          String       // Título del trabajo ej: "Instalación tablero trifásico"
+  status         JobStatus    @default(SCHEDULED)
+  totalAmount    Int          // Monto total pactado en ARS
+  balanceDue     Int          // Saldo pendiente por cobrar en ARS
+  scheduledDate  DateTime?    // Fecha pactada para realizar la tarea
+  completedAt    DateTime?
+  notes          String?      // Detalles técnicos, materiales comprados, etc.
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?    // Soft-delete
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer       Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  quote          Quote?       @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  payments       Payment[]
+
+  @@index([organizationId])
+  @@index([customerId])
+  @@index([status])
+  @@map("jobs")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  organizationId String
+  jobId          String
+  amount         Int           // Monto cobrado en ARS
+  paymentMethod  PaymentMethod // CASH, TRANSFER, MERCADO_PAGO
+  status         PaymentStatus @default(APPROVED)
+  mpPaymentId    String?       // ID de transacción retornado por Mercado Pago
+  mpPreferenceId String?       // ID de preferencia generada
+  notes          String?       // ej: "Seña 50%", "Transferencia CBU / Comprobante #9412"
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job            Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([jobId])
+  @@index([mpPaymentId])
+  @@map("payments")
+}

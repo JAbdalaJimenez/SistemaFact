@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 40% 98%; /* #F8FAFC Off-white Slate */
+    --foreground: 222 47% 11%; /* #0F172A Deep Obsidian */
+    --card: 0 0% 100%; /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 47% 11%; /* #0F172A Deep Obsidian */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%; /* #1E293B Dark Slate */
+    --secondary-foreground: 210 40% 98%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%; /* #64748B */
+    --accent: 41 46% 56%; /* #C5A059 Champagne Warm Gold */
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%; /* #E2E8F0 */
+    --input: 214.3 31.8% 91.4%;
+    --ring: 41 46% 56%; /* #C5A059 */
+    --radius: 0.75rem;
+  }
+}
+
+body {
+  color: #0F172A;
+  background-color: #F8FAFC;
+  font-family: 'Plus Jakarta Sans', Inter, Aptos, system-ui, -apple-system, sans-serif;
+  font-feature-settings: "rlig" 1, "calt" 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Números tabulares para columnas de importes, fechas y códigos técnicos */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tipografía de títulos de sección ejecutiva */
+.section-title-executive {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* Scrollbar sutil ejecutiva */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
