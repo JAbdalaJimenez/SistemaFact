@@ -88,7 +88,8 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
 
   const isSuperadmin = user?.role === "SUPERADMIN";
 
-  const navLinks = [
+  // Navegación para pantallas grandes (Desktop)
+  const desktopNavLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/customers", label: "Clientes", icon: Users },
     { href: "/quotes/new", label: "Nuevo", icon: PlusCircle, isPrimary: true },
@@ -98,6 +99,15 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
       ? [{ href: "/dashboard/users", label: "Usuarios", icon: UserCog }]
       : []),
     { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
+  ];
+
+  // Navegación móvil simétrica (5 ítems) con el botón [+] exactamente en el centro
+  const mobileNavLinks = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/customers", label: "Clientes", icon: Users },
+    { href: "/quotes/new", label: "Cotizar", icon: PlusCircle, isPrimary: true },
+    { href: "/quotes", label: "Presupuestos", icon: FileText },
+    { href: "/jobs", label: "Trabajos", icon: Briefcase },
   ];
 
   return (
@@ -129,8 +139,8 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
             </div>
           </Link>
 
-          {/* PERFIL, AJUSTES Y BOTÓN LOGOUT */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* PERFIL, USUARIOS (SUPERADMIN), AJUSTES Y BOTÓN LOGOUT */}
+          <div className="flex items-center space-x-1.5 sm:space-x-3">
             <div className="hidden sm:block text-right">
               <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
                 <span className="text-xs font-semibold text-[#0B132B]" suppressHydrationWarning>
@@ -152,6 +162,16 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
               </p>
             </div>
 
+            {isSuperadmin && (
+              <Link
+                href="/dashboard/users"
+                title="Gestión de Usuarios (Superadmin)"
+                className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-colors"
+              >
+                <UserCog className="w-4 h-4 text-[#9A6E24]" strokeWidth={1.5} />
+              </Link>
+            )}
+
             <Link
               href="/dashboard/settings"
               title="Configuración de la Organización"
@@ -171,10 +191,10 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
         </div>
       </header>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR (Mobile-First 390px) */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] pb-safe shadow-sm">
-        <div className={`grid ${isSuperadmin ? "grid-cols-7" : "grid-cols-6"} h-16 items-center px-1`}>
-          {navLinks.map((item) => {
+      {/* BARRA DE NAVEGACIÓN INFERIOR (5 Columnas Simétricas - Botón [+] en el Centro) */}
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/98 backdrop-blur border-t border-[#E2E8F0] pb-safe shadow-md">
+        <div className="grid grid-cols-5 h-16 items-center px-1 max-w-md mx-auto">
+          {mobileNavLinks.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
 
@@ -184,12 +204,12 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
                   key={item.href}
                   href={item.href}
                   prefetch={true}
-                  className="flex flex-col items-center justify-center -mt-5"
+                  className="flex flex-col items-center justify-center -mt-6 group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[#0B132B] hover:bg-[#1C2541] text-white flex items-center justify-center shadow-sm border border-[#C5A059]/40 ring-4 ring-[#F8FAFC] transition-transform active:scale-95">
-                    <PlusCircle className="w-6 h-6 text-[#C5A059]" strokeWidth={1.5} />
+                  <div className="w-13 h-13 rounded-2xl bg-[#0B132B] hover:bg-[#1C2541] text-white flex items-center justify-center shadow-md border-2 border-[#C5A059] ring-4 ring-white transition-all active:scale-95">
+                    <PlusCircle className="w-7 h-7 text-[#C5A059]" strokeWidth={1.8} />
                   </div>
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#0B132B] mt-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#0B132B] mt-1">
                     Cotizar
                   </span>
                 </Link>
@@ -204,7 +224,7 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
                 className={`flex flex-col items-center justify-center py-1 transition-colors ${
                   isActive
                     ? "text-[#0B132B] font-semibold"
-                    : "text-[#475569] hover:text-[#0B132B]"
+                    : "text-[#64748B] hover:text-[#0B132B]"
                 }`}
               >
                 <Icon
@@ -212,8 +232,10 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
                   strokeWidth={isActive ? 2 : 1.5}
                 />
                 <span className="text-[10px] mt-1 font-medium">{item.label}</span>
-                {isActive && (
+                {isActive ? (
                   <span className="w-1 h-1 rounded-full bg-[#C5A059] mt-0.5"></span>
+                ) : (
+                  <span className="w-1 h-1 mt-0.5"></span>
                 )}
               </Link>
             );
@@ -225,7 +247,7 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
       <div className="hidden sm:block bg-[#0B132B] text-white border-b border-[#1C2541]">
         <div className="max-w-5xl mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center space-x-1">
-            {navLinks.map((item) => {
+            {desktopNavLinks.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
