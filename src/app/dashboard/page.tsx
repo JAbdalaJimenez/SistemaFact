@@ -9,17 +9,23 @@ import {
   ShieldCheck,
   UserPlus,
   MapPin,
+  UserCog,
 } from "lucide-react";
 import { getDashboardMetrics, getOrganization } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { formatCurrencyARS } from "@/lib/types";
 
 export const revalidate = 0; // Datos frescos en cada solicitud
 
 export default async function DashboardPage() {
+  const session = await getSession();
+  const orgId = session?.organizationId;
   const [metrics, org] = await Promise.all([
-    getDashboardMetrics(),
-    getOrganization(),
+    getDashboardMetrics(orgId),
+    getOrganization(orgId),
   ]);
+
+  const isSuperadmin = session?.role === "SUPERADMIN";
 
   return (
     <div className="space-y-6 font-sans">
@@ -32,16 +38,18 @@ export default async function DashboardPage() {
             <div className="flex items-center space-x-2">
               <span className="bg-[#1C2541] border border-[#C5A059]/40 text-[#C5A059] text-[10px] font-semibold px-2.5 py-0.5 rounded tracking-wider uppercase flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#C5A059]" strokeWidth={1.5} />
-                <span className="tabular-nums">ERSeP Cat. III • Matrícula 14892</span>
+                <span className="tabular-nums">
+                  {(org as any).ersepLicenseNumber || org.ersepLicense || "Matrícula Habilitada ERSeP"}
+                </span>
               </span>
               <span className="text-[11px] text-slate-400 font-medium">Jurisdicción Córdoba Capital</span>
             </div>
 
             <div className="flex items-center gap-3.5 pt-1">
-              <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 shadow-inner">
+              <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 shadow-inner overflow-hidden">
                 <Image
-                  src="/logo-icon.png"
-                  alt="ElectroCba"
+                  src={(org as any).logoUrl || "/logo-icon.png"}
+                  alt={org.name}
                   width={40}
                   height={40}
                   className="w-full h-full object-contain"
@@ -53,15 +61,25 @@ export default async function DashboardPage() {
                 </h1>
                 <p className="text-xs text-slate-400 flex items-center gap-1.5 font-normal mt-0.5">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" strokeWidth={1.5} />
-                  <span>{org.address}</span>
+                  <span>{(org as any).legalAddress || org.address || "Córdoba Capital"}</span>
                   <span className="text-slate-500">•</span>
-                  <span>{org.taxCondition || "Monotributo - Servicios Técnicos"}</span>
+                  <span>{(org as any).vatCondition || org.taxCondition || "Monotributo - Servicios Técnicos"}</span>
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2 sm:pt-0 border-t border-[#1C2541] sm:border-t-0">
+          <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0 border-t border-[#1C2541] sm:border-t-0">
+            {isSuperadmin && (
+              <Link
+                href="/dashboard/users"
+                prefetch={true}
+                className="bg-[#C5A059] hover:bg-[#B08B42] text-[#0B132B] font-semibold text-xs sm:text-sm py-2.5 px-3.5 rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
+              >
+                <UserCog className="w-4 h-4" strokeWidth={2} />
+                <span>Usuarios</span>
+              </Link>
+            )}
             <Link
               href="/quotes/new"
               prefetch={true}
@@ -81,6 +99,37 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* SECCIÓN EXCLUSIVA SUPERADMIN: GESTIÓN DE USUARIOS */}
+      {isSuperadmin && (
+        <div className="bg-white rounded-2xl p-5 border-2 border-[#C5A059] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-xl bg-[#0B132B] flex items-center justify-center shrink-0 shadow-sm">
+              <UserCog className="w-6 h-6 text-[#C5A059]" strokeWidth={1.5} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-[#0B132B]">Administración de Usuarios y Cuentas</span>
+                <span className="bg-[#C5A059] text-[#0B132B] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                  Acceso Superadmin
+                </span>
+              </div>
+              <p className="text-xs text-[#475569] mt-0.5">
+                Crea nuevas cuentas para el personal (Titulares o Técnicos), asigna contraseñas y gestiona sus roles.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/users"
+            prefetch={true}
+            className="bg-[#0B132B] hover:bg-[#1C2541] text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 border border-[#1C2541] active:scale-95"
+          >
+            <UserCog className="w-4 h-4 text-[#C5A059]" />
+            <span>Crear y Administrar Usuarios</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#C5A059]" />
+          </Link>
+        </div>
+      )}
 
       {/* MÉTRICAS DE CONTROL OPERATIVO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

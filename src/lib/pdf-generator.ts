@@ -9,6 +9,7 @@ interface QuoteData {
   title?: string | null;
   createdAt: Date | string;
   validityDays?: number;
+  expiresAt?: Date | string | null;
   totalAmount: number;
   depositPercentage?: number;
   notes?: string | null;
@@ -21,12 +22,19 @@ interface QuoteData {
   };
   organization: {
     name: string;
+    legalName?: string | null;
+    ersepLicenseNumber?: string | null;
     ersepLicense?: string | null;
     cuit?: string | null;
+    vatCondition?: string | null;
     taxCondition?: string | null;
+    legalAddress?: string | null;
     address?: string | null;
     phone?: string | null;
+    whatsappNumber?: string | null;
     email?: string | null;
+    bankAlias?: string | null;
+    cbuCvu?: string | null;
     aliasCbu?: string | null;
   };
   items: Array<{
@@ -57,7 +65,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
   const marginX = 40;
   let cursorY = height - 40;
 
-  // Cargar logotipo oficial de ElectroCba
+  // Cargar logotipo oficial
   let logoImage = null;
   try {
     const logoPath = path.join(process.cwd(), "public", "logo-full.png");
@@ -97,7 +105,18 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     });
   }
 
-  page.drawText(quote.organization.name || "ElectroCba - Soluciones Eléctricas", {
+  const orgName = quote.organization.name || "ElectroCba - Soluciones Eléctricas";
+  const orgLicense =
+    quote.organization.ersepLicenseNumber ||
+    quote.organization.ersepLicense ||
+    "Matrícula Habilitada ERSeP";
+  const cuitStr = quote.organization.cuit ? ` • CUIT: ${quote.organization.cuit}` : "";
+  const vatStr = quote.organization.vatCondition || quote.organization.taxCondition || "Monotributo";
+  const addrStr = quote.organization.legalAddress || quote.organization.address || "Córdoba Capital";
+  const phoneVal = quote.organization.phone || quote.organization.whatsappNumber || "";
+  const phoneStr = phoneVal ? ` | Tel: ${phoneVal}` : "";
+
+  page.drawText(orgName, {
     x: marginX + 15,
     y: cursorY - 25,
     size: 15,
@@ -105,32 +124,31 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: rgb(1, 1, 1),
   });
 
-  page.drawText(
-    `${quote.organization.ersepLicense || "Matrícula Habilitada ERSeP Cat. III - N° 14892"} • CUIT: ${quote.organization.cuit || "20-33445566-9"}`,
-    {
-      x: marginX + 15,
-      y: cursorY - 42,
-      size: 9,
-      font: fontBold,
-      color: rgb(187 / 255, 247 / 255, 208 / 255), // light green
-    }
-  );
+  page.drawText(`${orgLicense}${cuitStr}`, {
+    x: marginX + 15,
+    y: cursorY - 42,
+    size: 9,
+    font: fontBold,
+    color: rgb(187 / 255, 247 / 255, 208 / 255), // light green
+  });
 
-  page.drawText(
-    `${quote.organization.taxCondition || "Monotributo"} | ${quote.organization.address || "Córdoba Capital"} | Tel: ${quote.organization.phone || "+54 9 351 512-3456"}`,
-    {
-      x: marginX + 15,
-      y: cursorY - 55,
-      size: 8,
-      font: fontRegular,
-      color: rgb(219 / 255, 234 / 255, 254 / 255),
-    }
-  );
+  page.drawText(`${vatStr} | ${addrStr}${phoneStr}`, {
+    x: marginX + 15,
+    y: cursorY - 55,
+    size: 8,
+    font: fontRegular,
+    color: rgb(219 / 255, 234 / 255, 254 / 255),
+  });
 
   cursorY -= 80;
 
   // 2. TÍTULO DEL COMPROBANTE Y NÚMERO FORMAL
   const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
+  const createdAtDate = new Date(quote.createdAt);
+  const validityDays = quote.validityDays || 15;
+  const expirationDate = quote.expiresAt
+    ? new Date(quote.expiresAt)
+    : new Date(createdAtDate.getTime() + validityDays * 86400000);
 
   page.drawText(`PRESUPUESTO FORMAL: ${quoteNum}`, {
     x: marginX,
@@ -140,10 +158,10 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: primaryBlue,
   });
 
-  page.drawText(`Emisión: ${formatDate(quote.createdAt)} | Validez: ${quote.validityDays || 10} días corridos`, {
-    x: width - marginX - 220,
+  page.drawText(`Emisión: ${formatDate(createdAtDate)} | Vence: ${formatDate(expirationDate)} (${validityDays} días corridos)`, {
+    x: width - marginX - 260,
     y: cursorY,
-    size: 9,
+    size: 8.5,
     font: fontRegular,
     color: textMuted,
   });
@@ -331,14 +349,18 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: rgb(180 / 255, 83 / 255, 9 / 255), // amber-700
   });
 
+  const bankAlias = quote.organization.bankAlias || quote.organization.aliasCbu;
+  const cbuCvu = quote.organization.cbuCvu;
+  const bankDetails = bankAlias ? `Alias: ${bankAlias}` : (cbuCvu ? `CBU/CVU: ${cbuCvu}` : "Transferencia directa");
+
   const legalLines = [
-    "1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de la Pcia. de Córdoba N° 10.281 y reglamentación AEA 90364.",
+    `1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de la Pcia. de Córdoba N° 10.281 (${orgLicense}) y reglamentación AEA 90364.`,
     "2. GARANTÍA LEGAL ESCRITA: Conforme a la Ley Nacional de Defensa del Consumidor N° 24.240 (Arts. 11 y 21), se otorga garantía",
     "    escrita por seis (6) meses sobre la mano de obra y componentes instalados.",
-    `3. VIGENCIA Y ANTI-INFLACIÓN: Cotización firme por ${quote.validityDays || 10} días corridos. Ajustes posteriores aplicarán exclusivamente`,
-    "    si la lista oficial de distribuidoras de materiales eléctricos supera el 10% de variación.",
-    `4. PLAN DE PAGO: Seña del ${depositPercent}% para reserva de fecha y materiales; saldo restante contra conformidad de obra.`,
-    `5. MEDIOS HABILITADOS: Transferencia (Alias: ${quote.organization.aliasCbu || "ELECTROCBA.MP"}), Mercado Pago (tarjeta/débito) o Efectivo.`,
+    `3. VIGENCIA Y ANTI-INFLACIÓN: Cotización firme hasta el ${formatDate(expirationDate)} (${validityDays} días corridos). Ajustes posteriores`,
+    "    aplicarán si la lista oficial de distribuidoras de materiales eléctricos supera el 10% de variación.",
+    `4. PLAN DE PAGO: Seña del ${depositPercent}% para reserva de fecha y materiales; saldo del ${100 - depositPercent}% restante contra recepción y conformidad de obra.`,
+    `5. MEDIOS HABILITADOS: Transferencia bancaria (${bankDetails}), Mercado Pago Oficial o Efectivo con recibo fiscal.`,
   ];
 
   legalLines.forEach((line, idx) => {
@@ -361,7 +383,8 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: textMuted,
   });
 
-  page.drawText("Marcos Romero - Titular", {
+  const signerName = quote.organization.legalName || quote.organization.name || "Instalador Habilitado";
+  page.drawText(signerName, {
     x: width - marginX - 160,
     y: cursorY - 12,
     size: 8.5,
@@ -369,7 +392,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: textDark,
   });
 
-  page.drawText(quote.organization.ersepLicense || "Electricista Matriculado ERSeP Cat. III", {
+  page.drawText(orgLicense, {
     x: width - marginX - 175,
     y: cursorY - 23,
     size: 7.5,

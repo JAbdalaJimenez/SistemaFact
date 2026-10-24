@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { formatCurrencyARS } from "@/lib/types";
 import { CreditCard, Wallet, ShieldCheck, CheckCircle2, ArrowLeft, Loader2, Sparkles } from "lucide-react";
 
@@ -17,6 +17,26 @@ function CheckoutMockContent() {
 
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "wallet" | "transfer">("wallet");
+  const [seller, setSeller] = useState({
+    name: "ElectroCba",
+    legalName: "Instalador Habilitado",
+    license: "Matrícula ERSeP Córdoba",
+  });
+
+  useEffect(() => {
+    fetch("/api/organization")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.organization) {
+          setSeller({
+            name: data.organization.name || "ElectroCba",
+            legalName: data.organization.legalName || data.organization.name || "Instalador Habilitado",
+            license: data.organization.ersepLicenseNumber || data.organization.ersepLicense || "Matrícula ERSeP Córdoba",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handlePay = async () => {
     setLoading(true);
@@ -74,8 +94,8 @@ function CheckoutMockContent() {
         <div className="p-6">
           <div className="border-b border-slate-100 pb-4 mb-4">
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Cobro para</span>
-            <h2 className="text-lg font-bold text-slate-900">ElectroCba - Marcos Romero</h2>
-            <p className="text-xs text-slate-500 mt-0.5">Matrícula ERSeP N° 14892 • Córdoba</p>
+            <h2 className="text-lg font-bold text-slate-900">{seller.name} - {seller.legalName}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{seller.license} • Córdoba</p>
             <p className="text-sm font-medium text-slate-700 mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
               {title}
             </p>

@@ -13,34 +13,39 @@ import {
   PlusCircle,
   ShieldCheck,
   LogOut,
-  User,
+  Settings,
+  UserCog,
 } from "lucide-react";
 
 interface CurrentUser {
   id: string;
   name: string;
   email: string;
-  role: "OWNER" | "MEMBER";
+  role: "SUPERADMIN" | "OWNER" | "MEMBER";
   organizationName: string;
+  ersepLicense?: string;
 }
 
-export function AppNavigation() {
+interface AppNavigationProps {
+  initialUser?: CurrentUser | null;
+}
+
+export function AppNavigation({ initialUser = null }: AppNavigationProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [user, setUser] = useState<CurrentUser | null>(initialUser);
 
   useEffect(() => {
-    // Si ya tenemos el usuario en memoria, no re-consultar en cada cambio de página
-    if (user) return;
+    if (initialUser) {
+      setUser(initialUser);
+      try {
+        sessionStorage.setItem("electrocba_user", JSON.stringify(initialUser));
+      } catch {}
+    }
+  }, [initialUser]);
 
-    try {
-      const saved = sessionStorage.getItem("electrocba_user");
-      if (saved) {
-        setUser(JSON.parse(saved));
-        return;
-      }
-    } catch {}
-
+  useEffect(() => {
+    // Sincronizar siempre con el endpoint de sesión para evitar datos viejos en sessionStorage
     fetch("/api/auth/me")
       .then((res) => {
         if (res.ok) return res.json();
@@ -52,14 +57,19 @@ export function AppNavigation() {
           try {
             sessionStorage.setItem("electrocba_user", JSON.stringify(data.user));
           } catch {}
+        } else if (data && !data.authenticated) {
+          setUser(null);
+          try {
+            sessionStorage.removeItem("electrocba_user");
+          } catch {}
         }
       })
       .catch(() => {});
-  }, [user]);
+  }, []);
 
   const handleLogout = async () => {
     try {
-      sessionStorage.removeItem("electrocba_user");
+      sessionStorage.clear();
     } catch {}
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
@@ -76,12 +86,18 @@ export function AppNavigation() {
     return null;
   }
 
+  const isSuperadmin = user?.role === "SUPERADMIN";
+
   const navLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/customers", label: "Clientes", icon: Users },
     { href: "/quotes/new", label: "Nuevo", icon: PlusCircle, isPrimary: true },
     { href: "/quotes", label: "Presupuestos", icon: FileText },
     { href: "/jobs", label: "Trabajos", icon: Briefcase },
+    ...(isSuperadmin
+      ? [{ href: "/dashboard/users", label: "Usuarios", icon: UserCog }]
+      : []),
+    { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
   ];
 
   return (
@@ -104,7 +120,7 @@ export function AppNavigation() {
               <div className="flex items-center space-x-1">
                 <ShieldCheck className="w-3 h-3 text-[#9A6E24]" />
                 <span className="text-[10px] font-bold tracking-widest text-[#9A6E24] uppercase tabular-nums">
-                  ERSeP Cat. III • Mat. 14892
+                  {user?.ersepLicense || "ERSeP Cat. III • Córdoba"}
                 </span>
               </div>
               <span className="block text-[10px] text-[#64748B]">
@@ -113,12 +129,12 @@ export function AppNavigation() {
             </div>
           </Link>
 
-          {/* PERFIL Y BOTÓN LOGOUT */}
-          <div className="flex items-center space-x-3">
+          {/* PERFIL, AJUSTES Y BOTÓN LOGOUT */}
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <div className="hidden sm:block text-right">
               <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
                 <span className="text-xs font-semibold text-[#0B132B]" suppressHydrationWarning>
-                  {user?.name || "Marcos Romero"}
+                  {user?.name || "Instalador Habilitado"}
                 </span>
                 <span
                   suppressHydrationWarning
@@ -132,9 +148,17 @@ export function AppNavigation() {
                 </span>
               </div>
               <p className="text-[10px] uppercase tracking-wider text-[#475569] font-medium">
-                Instalador Habilitado
+                {user?.organizationName || "ElectroCba"}
               </p>
             </div>
+
+            <Link
+              href="/dashboard/settings"
+              title="Configuración de la Organización"
+              className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-colors"
+            >
+              <Settings className="w-4 h-4 text-[#9A6E24]" strokeWidth={1.5} />
+            </Link>
 
             <button
               onClick={handleLogout}
@@ -149,7 +173,7 @@ export function AppNavigation() {
 
       {/* BARRA DE NAVEGACIÓN INFERIOR (Mobile-First 390px) */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] pb-safe shadow-sm">
-        <div className="grid grid-cols-5 h-16 items-center px-1">
+        <div className={`grid ${isSuperadmin ? "grid-cols-7" : "grid-cols-6"} h-16 items-center px-1`}>
           {navLinks.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;

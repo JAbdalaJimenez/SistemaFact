@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       title,
       amount: Number(amount),
       organizationId: org.id,
+      accessToken: (org as any).mpAccessToken || undefined,
       jobId,
       quoteId,
       customerName,
@@ -63,6 +64,9 @@ export async function POST(req: NextRequest) {
       amount: Number(amount),
       paymentUrl: prefResult.shortUrl,
       type: quoteId ? "quote_deposit" : "job_balance",
+      organizationName: org.name,
+      electricianName: (org as any).legalName || org.name,
+      ersepLicense: (org as any).ersepLicenseNumber || (org as any).ersepLicense,
     });
 
     return NextResponse.json({

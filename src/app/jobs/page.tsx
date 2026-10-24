@@ -5,12 +5,14 @@ import {
   Plus,
 } from "lucide-react";
 import { getJobs } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { formatCurrencyARS } from "@/lib/types";
 
 export const revalidate = 0;
 
 export default async function JobsListPage() {
-  const jobs = await getJobs();
+  const session = await getSession();
+  const jobs = await getJobs(session?.organizationId);
 
   return (
     <div className="space-y-6 font-sans">
@@ -38,7 +40,28 @@ export default async function JobsListPage() {
         </Link>
       </div>
 
-      <div className="space-y-3">
+      {jobs.length === 0 ? (
+        <div className="bg-white rounded-2xl p-12 text-center border border-[#E2E8F0] shadow-sm space-y-3">
+          <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 text-[#9A6E24] flex items-center justify-center mx-auto">
+            <Briefcase className="w-6 h-6" strokeWidth={1.5} />
+          </div>
+          <h3 className="text-base font-semibold text-[#0B132B]">No hay órdenes de trabajo activas</h3>
+          <p className="text-xs text-[#475569] max-w-sm mx-auto">
+            Las órdenes de trabajo se generan automáticamente cuando un presupuesto es aprobado o se acredita una seña técnica.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/quotes/new"
+              prefetch={true}
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#0B132B] hover:bg-[#1C2541] text-white text-xs font-medium rounded-xl shadow-sm transition-all"
+            >
+              <Plus className="w-4 h-4 text-[#C5A059]" />
+              <span>Emitir Nuevo Presupuesto</span>
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
         {jobs.map((job) => {
           const totalPaid = job.totalAmount - job.balanceDue;
           const paidPercentage = Math.min(
@@ -125,7 +148,8 @@ export default async function JobsListPage() {
             </Link>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

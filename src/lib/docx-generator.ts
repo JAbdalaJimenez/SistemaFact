@@ -20,6 +20,7 @@ interface QuoteData {
   title?: string | null;
   createdAt: Date | string;
   validityDays?: number;
+  expiresAt?: Date | string | null;
   totalAmount: number;
   depositPercentage?: number;
   notes?: string | null;
@@ -32,12 +33,19 @@ interface QuoteData {
   };
   organization: {
     name: string;
+    legalName?: string | null;
+    ersepLicenseNumber?: string | null;
     ersepLicense?: string | null;
     cuit?: string | null;
+    vatCondition?: string | null;
     taxCondition?: string | null;
+    legalAddress?: string | null;
     address?: string | null;
     phone?: string | null;
+    whatsappNumber?: string | null;
     email?: string | null;
+    bankAlias?: string | null;
+    cbuCvu?: string | null;
     aliasCbu?: string | null;
   };
   items: Array<{
@@ -107,6 +115,27 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
     ],
   });
 
+  const orgName = quote.organization.name || "ElectroCba - Soluciones Eléctricas";
+  const orgLicense =
+    quote.organization.ersepLicenseNumber ||
+    quote.organization.ersepLicense ||
+    "Matrícula Habilitada ERSeP";
+  const cuitText = quote.organization.cuit ? ` • CUIT: ${quote.organization.cuit}` : "";
+  const vatText =
+    quote.organization.vatCondition ||
+    quote.organization.taxCondition ||
+    "Monotributo - Prestador de Servicios";
+  const addressText =
+    quote.organization.legalAddress || quote.organization.address || "Córdoba Capital";
+  const phoneVal = quote.organization.phone || quote.organization.whatsappNumber || "";
+  const phoneText = phoneVal ? ` | Tel: ${phoneVal}` : "";
+
+  const createdAtDate = new Date(quote.createdAt);
+  const validityDays = quote.validityDays || 15;
+  const expirationDate = quote.expiresAt
+    ? new Date(quote.expiresAt)
+    : new Date(createdAtDate.getTime() + validityDays * 86400000);
+
   const doc = new Document({
     sections: [
       {
@@ -120,7 +149,7 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
           new Paragraph({
             children: [
               new TextRun({
-                text: quote.organization.name || "ElectroCba - Soluciones Eléctricas",
+                text: orgName,
                 bold: true,
                 size: 32, // 16pt
                 color: "1E40AF",
@@ -131,7 +160,7 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
           new Paragraph({
             children: [
               new TextRun({
-                text: `${quote.organization.ersepLicense || "Matrícula Habilitada ERSeP Cat. III - N° 14892"} • CUIT: ${quote.organization.cuit || "20-33445566-9"}`,
+                text: `${orgLicense}${cuitText}`,
                 bold: true,
                 size: 20,
                 color: "15803D",
@@ -142,7 +171,7 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
           new Paragraph({
             children: [
               new TextRun({
-                text: `Condición Fiscal: ${quote.organization.taxCondition || "Monotributo Prestador de Servicios"} | Domicilio Legal: ${quote.organization.address || "Córdoba Capital"} | Tel: ${quote.organization.phone || "+54 9 351 512-3456"}`,
+                text: `Condición Fiscal: ${vatText} | Domicilio Legal: ${addressText}${phoneText}`,
                 size: 18,
                 color: "64748B",
                 font: "Arial",
@@ -194,10 +223,10 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
             children: [
               new TextRun({ text: "CONTACTO: ", bold: true, size: 20, font: "Arial" }),
               new TextRun({ text: `${quote.customer.phone}`, size: 20, font: "Arial" }),
-              new TextRun({ text: "   |   FECHA EMISIÓN: ", bold: true, size: 20, font: "Arial" }),
-              new TextRun({ text: `${formatDate(quote.createdAt)}`, size: 20, font: "Arial" }),
-              new TextRun({ text: `   |   VALIDEZ: `, bold: true, size: 20, font: "Arial" }),
-              new TextRun({ text: `${quote.validityDays || 10} días corridos`, size: 20, font: "Arial" }),
+              new TextRun({ text: "   |   EMISIÓN: ", bold: true, size: 20, font: "Arial" }),
+              new TextRun({ text: `${formatDate(createdAtDate)}`, size: 20, font: "Arial" }),
+              new TextRun({ text: `   |   VENCE: `, bold: true, size: 20, font: "Arial" }),
+              new TextRun({ text: `${formatDate(expirationDate)} (${validityDays} días corridos)`, size: 20, font: "Arial" }),
             ],
             spacing: { after: 360 },
           }),
@@ -311,12 +340,13 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
           new Paragraph({
             children: [
               new TextRun({
-                text: quote.notes ||
-                  "1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de Córdoba N° 10.281 y reglamento AEA 90364.\n" +
-                  "2. GARANTÍA LEGAL ESCRITA: Ley 24.240 de Defensa del Consumidor (Arts. 11 y 21): seis (6) meses de garantía sobre mano de obra.\n" +
-                  "3. CLÁUSULA ANTI-INFLACIÓN: Cotización fija por el plazo de validez. Variaciones de distribuidoras superiores al 10% se ajustan con factura testigo.\n" +
-                  "4. CONDICIONES DE PAGO: 50% de seña para inicio y 50% final contra prueba de funcionamiento.\n" +
-                  `5. MEDIOS DE PAGO: Transferencia (Alias: ${quote.organization.aliasCbu || "ELECTROCBA.MP"}), Mercado Pago o Efectivo.`,
+                text:
+                  quote.notes ||
+                  `1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de Córdoba N° 10.281 (${orgLicense}) y reglamento AEA 90364.\n` +
+                  `2. GARANTÍA LEGAL ESCRITA: Ley 24.240 de Defensa del Consumidor (Arts. 11 y 21): seis (6) meses de garantía escrita sobre mano de obra y componentes instalados.\n` +
+                  `3. CLÁUSULA ANTI-INFLACIÓN: Cotización fija hasta el ${formatDate(expirationDate)}. Variaciones de distribuidoras superiores al 10% se ajustan con factura testigo.\n` +
+                  `4. CONDICIONES DE PAGO: ${depositPercent}% de seña para inicio y acopio de materiales, y ${100 - depositPercent}% final contra recepción y conformidad de obra.\n` +
+                  `5. MEDIOS DE PAGO: Transferencia bancaria (Alias: ${quote.organization.bankAlias || quote.organization.aliasCbu || "A convenir"}), Mercado Pago Checkout Oficial o Efectivo.`,
                 size: 16,
                 color: "475569",
                 font: "Arial",
@@ -335,13 +365,13 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
                 font: "Arial",
               }),
               new TextRun({
-                text: `${quote.organization.name}\n`,
+                text: `${quote.organization.legalName || quote.organization.name || "Instalador Habilitado"}\n`,
                 bold: true,
                 size: 18,
                 font: "Arial",
               }),
               new TextRun({
-                text: `${quote.organization.ersepLicense || "Instalador Electricista Matriculado ERSeP Cat. III"}\n`,
+                text: `${orgLicense}\n`,
                 size: 16,
                 color: "64748B",
                 font: "Arial",

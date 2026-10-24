@@ -11,6 +11,7 @@ datasource db {
 }
 
 enum UserRole {
+  SUPERADMIN
   OWNER
   MEMBER
 }
@@ -48,19 +49,28 @@ enum QuoteItemType {
 }
 
 model Organization {
-  id           String    @id @default(cuid())
-  name         String
-  slug         String    @unique
-  phone        String
-  email        String
-  currency     String    @default("ARS")
-  ersepLicense String?   // Matrícula ERSeP (Córdoba) ej: ERSeP Cat. III - N° 14892
-  cuit         String?   // CUIT ej: 20-33445566-9
-  taxCondition String    @default("Monotributo - Prestador de Servicios") // IVA
-  aliasCbu     String?   // Alias / CVU bancario para transferencias
-  address      String?   // Dirección legal / taller
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String
+  slug               String    @unique
+  legalName          String?   // Razón social o Nombre y Apellido del instalador
+  ersepLicenseNumber String?   // Matrícula Habilitante ERSeP con Categoría (ej: ERSeP Cat. III - N° 14892)
+  ersepLicense       String?   // Retrocompatibilidad
+  cuit               String?   // Identificación tributaria ARCA / AFIP (ej: 20-33445566-9)
+  vatCondition       String    @default("Monotributo") // Monotributista / Responsable Inscripto / Exento
+  taxCondition       String    @default("Monotributo - Prestador de Servicios") // Retrocompatibilidad
+  legalAddress       String?   // Domicilio profesional en Córdoba
+  address            String?   // Retrocompatibilidad
+  phone              String    // Teléfono de contacto
+  whatsappNumber     String?   // WhatsApp profesional para comitentes
+  bankAlias          String?   // Alias bancario para transferencias inmediatas
+  cbuCvu             String?   // CBU o CVU de 22 dígitos
+  aliasCbu           String?   // Retrocompatibilidad
+  mpAccessToken      String?   // Access Token de Mercado Pago (por tenant)
+  mpPublicKey        String?   // Public Key de Mercado Pago (por tenant)
+  logoUrl            String?   // URL o path del logotipo profesional
+  currency           String    @default("ARS")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   users        User[]
   customers    Customer[]

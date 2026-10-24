@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -29,6 +29,21 @@ export default function NewCustomerPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [orgInfo, setOrgInfo] = useState({ name: "ElectroCba", signer: "Instalador Habilitado" });
+
+  useEffect(() => {
+    fetch("/api/organization")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.organization) {
+          setOrgInfo({
+            name: data.organization.name || "ElectroCba",
+            signer: data.organization.legalName || data.organization.name || "Instalador Habilitado",
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -84,7 +99,7 @@ export default function NewCustomerPage() {
 
   const previewWaPhone = formatPhoneForWhatsApp(formData.phone);
   const previewWaUrl = `https://wa.me/${previewWaPhone}?text=${encodeURIComponent(
-    `Estimado/a ${formData.name || "Titular"}, le saluda Marcos Romero de ElectroCba.`
+    `Estimado/a ${formData.name || "Titular"}, le saluda ${orgInfo.signer} de ${orgInfo.name}.`
   )}`;
 
   return (

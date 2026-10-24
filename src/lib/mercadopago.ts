@@ -12,6 +12,7 @@ export interface CreatePreferenceParams {
   title: string;
   amount: number;
   organizationId: string;
+  accessToken?: string;
   quoteId?: string;
   jobId?: string;
   customerName?: string;
@@ -32,30 +33,35 @@ export async function createPreference(
   params: CreatePreferenceParams
 ): Promise<PreferenceResult> {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const tokenToUse = params.accessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || "TEST-mock-token";
 
   // En caso de que se use un token de prueba o sin conexión externa a MP,
   // permitimos generar el objeto de preferencia con fallback seguro y funcional.
   try {
     if (
-      process.env.MERCADO_PAGO_ACCESS_TOKEN &&
-      !process.env.MERCADO_PAGO_ACCESS_TOKEN.includes("mock") &&
-      !process.env.MERCADO_PAGO_ACCESS_TOKEN.includes("1234567890")
+      tokenToUse &&
+      !tokenToUse.includes("mock") &&
+      !tokenToUse.includes("1234567890")
     ) {
-      const preference = new Preference(client);
+      const activeClient = new MercadoPagoConfig({
+        accessToken: tokenToUse,
+        options: { timeout: 7000 },
+      });
+      const preference = new Preference(activeClient);
       const res = await preference.create({
         body: {
           items: [
             {
               id: params.jobId || params.quoteId || "item-electrocba",
               title: params.title,
-              description: `Servicio técnico electricista - ElectroCba (${params.title})`,
+              description: `Servicio técnico electricista (${params.title})`,
               unit_price: Number(params.amount),
               quantity: 1,
               currency_id: "ARS",
             },
           ],
           payer: {
-            name: params.customerName || "Cliente ElectroCba",
+            name: params.customerName || "Cliente",
             email: params.customerEmail || "cliente@electrocba.com.ar",
           },
           back_urls: {
@@ -87,7 +93,7 @@ export async function createPreference(
       };
     }
   } catch (error) {
-    console.warn("Mercado Pago API real no disponible con credenciales mock. Usando sandbox local simulado:", error);
+    console.warn("Mercado Pago API real no disponible con credenciales mock. Usando sandbox simulado:", error);
   }
 
   // Simulación realista de Mercado Pago Checkout Pro para entornos de prueba
@@ -146,7 +152,7 @@ export function verifyMercadoPagoSignature(
 }
 
 /**
- * Genera el enlace de WhatsApp preconfigurado con mensaje profesional cordobés
+ * Genera el enlace de WhatsApp preconfigurado con mensaje profesional dinámico
  */
 export function generateWhatsAppLink({
   phone,
@@ -156,6 +162,9 @@ export function generateWhatsAppLink({
   paymentUrl,
   type = "job_balance",
   publicToken,
+  organizationName = "ElectroCba",
+  electricianName = "Instalador Electricista",
+  ersepLicense = "Matrícula Habilitada ERSeP",
 }: {
   phone: string;
   customerName: string;
@@ -164,6 +173,9 @@ export function generateWhatsAppLink({
   paymentUrl?: string;
   type?: "quote" | "quote_deposit" | "job_balance";
   publicToken?: string;
+  organizationName?: string;
+  electricianName?: string;
+  ersepLicense?: string;
 }): string {
   const cleanPhone = formatPhoneForWhatsApp(phone);
   const formattedAmount = formatCurrencyARS(amount);
@@ -173,13 +185,13 @@ export function generateWhatsAppLink({
 
   if (type === "quote" && publicToken) {
     const quoteUrl = `${baseUrl}/p/${publicToken}`;
-    message = `Estimado/a ${customerName}:\n\nLe saluda Marcos Romero de ElectroCba (Matrícula ERSeP N° 14892).\n\nLe comparto el detalle formal del presupuesto para su obra: *${title}* por un total de *${formattedAmount}*.\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo en el siguiente enlace oficial:\n${quoteUrl}\n\nQuedo a su disposición ante cualquier requerimiento normativo.`;
+    message = `Estimado/a ${customerName}:\n\nLe saluda ${electricianName} de ${organizationName} (${ersepLicense}).\n\nLe comparto el detalle formal del presupuesto para su obra: *${title}* por un total de *${formattedAmount}*.\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo en el siguiente enlace oficial:\n${quoteUrl}\n\nQuedo a su disposición ante cualquier requerimiento normativo.`;
   } else if (type === "quote_deposit" && paymentUrl) {
-    message = `Estimado/a ${customerName}:\n\nMarcos Romero de ElectroCba.\n\nPara confirmar la fecha de inicio de obra (*${title}*), puede abonar la seña formal del 50% (*${formattedAmount}*) de forma segura por Mercado Pago:\n${paymentUrl}\n\nUna vez acreditada se confirmará el ingreso en el cronograma técnico de obra.`;
+    message = `Estimado/a ${customerName}:\n\n${electricianName} de ${organizationName}.\n\nPara confirmar la fecha de inicio de obra (*${title}*), puede abonar la seña formal (*${formattedAmount}*) de forma segura por Mercado Pago:\n${paymentUrl}\n\nUna vez acreditada se confirmará el ingreso en el cronograma técnico de obra.`;
   } else if (paymentUrl) {
-    message = `Estimado/a ${customerName}:\n\nMarcos Romero de ElectroCba.\n\nLe remito el enlace oficial para cancelar el saldo contractual restante de *${formattedAmount}* correspondiente a la obra: *${title}*:\n${paymentUrl}\n\nPuede abonar mediante transferencia, tarjeta de débito/crédito o dinero en cuenta.`;
+    message = `Estimado/a ${customerName}:\n\n${electricianName} de ${organizationName}.\n\nLe remito el enlace oficial para cancelar el saldo contractual restante de *${formattedAmount}* correspondiente a la obra: *${title}*:\n${paymentUrl}\n\nPuede abonar mediante transferencia, tarjeta de débito/crédito o dinero en cuenta.`;
   } else {
-    message = `Estimado/a ${customerName}:\n\nLe saluda Marcos Romero de ElectroCba. Me contacto con referencia a los servicios técnicos solicitados. ¿En qué franja horaria le resulta conveniente coordinar el relevamiento técnico en obra?`;
+    message = `Estimado/a ${customerName}:\n\nLe saluda ${electricianName} de ${organizationName}. Me contacto con referencia a los servicios técnicos solicitados. ¿En qué franja horaria le resulta conveniente coordinar el relevamiento técnico en obra?`;
   }
 
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;

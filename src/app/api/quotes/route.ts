@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getQuotes, createQuote, getOrganization } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { quoteCreateSchema } from "@/lib/types";
 
 export async function GET() {
   try {
-    const quotes = await getQuotes();
+    const session = await getSession();
+    const orgId = session?.organizationId;
+    const quotes = await getQuotes(orgId);
     return NextResponse.json(quotes);
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
@@ -16,7 +19,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const validated = quoteCreateSchema.parse(body);
 
-    const org = await getOrganization();
+    const session = await getSession();
+    const org = await getOrganization(session?.organizationId);
     const newQuote = await createQuote(org.id, validated);
 
     return NextResponse.json({ success: true, quote: newQuote });

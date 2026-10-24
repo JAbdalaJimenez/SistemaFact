@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQuotes, getQuoteByPublicToken, isDatabaseOnline } from "@/lib/services";
+import { getQuotes, getQuoteByPublicToken, getOrganization, isDatabaseOnline } from "@/lib/services";
 import { generateQuotePdf } from "@/lib/pdf-generator";
 import prisma from "@/lib/db";
 
@@ -45,6 +45,10 @@ export async function GET(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
     }
 
+    if (!quote.organization) {
+      quote.organization = await getOrganization(quote.organizationId);
+    }
+
     const pdfBytes = await generateQuotePdf(quote);
     const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
 
@@ -52,7 +56,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Presupuesto-ElectroCba-${quoteNum}.pdf"`,
+        "Content-Disposition": `attachment; filename="Presupuesto-${quoteNum}.pdf"`,
         "Cache-Control": "public, max-age=60",
       },
     });

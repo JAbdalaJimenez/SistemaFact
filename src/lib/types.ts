@@ -21,22 +21,69 @@ export const quoteItemSchema = z.object({
   unitPrice: z.number().int().nonnegative("El precio unitario no puede ser negativo"),
 });
 
+export const organizationSettingsSchema = z.object({
+  name: z.string().min(2, "El nombre comercial debe tener al menos 2 caracteres"),
+  legalName: z.string().min(2, "La razón social o nombre y apellido es obligatorio"),
+  ersepLicenseNumber: z.string().min(3, "La matrícula habilitante ERSeP con categoría es obligatoria"),
+  cuit: z.string().min(10, "El CUIT ante ARCA/AFIP es obligatorio"),
+  vatCondition: z.string().min(2, "La condición frente al IVA es obligatoria"),
+  legalAddress: z.string().min(3, "El domicilio legal en Córdoba es obligatorio"),
+  phone: z.string().min(6, "El teléfono de contacto es obligatorio"),
+  whatsappNumber: z.string().optional().nullable(),
+  bankAlias: z.string().optional().nullable(),
+  cbuCvu: z.string().optional().nullable(),
+  mpAccessToken: z.string().optional().nullable(),
+  mpPublicKey: z.string().optional().nullable(),
+  logoUrl: z.string().optional().nullable(),
+  email: z.string().email("Email inválido").optional().nullable(),
+});
+
+export type OrganizationSettingsInput = z.infer<typeof organizationSettingsSchema>;
+
 export const quoteCreateSchema = z.object({
   customerId: z.string().min(1, "Debe seleccionar un cliente"),
   title: z.string().min(3, "El título del presupuesto es obligatorio"),
   depositPercentage: z.number().int().min(0).max(100).default(50),
-  validityDays: z.number().int().min(1).max(90).default(10),
+  validityDays: z.number().int().min(1).max(90).default(15),
+  taxRate: z.number().min(0).max(100).default(0),
   notes: z.string().optional(),
   items: z.array(quoteItemSchema).min(1, "Debe agregar al menos un ítem al presupuesto"),
 });
 
 export type QuoteCreateInput = z.infer<typeof quoteCreateSchema>;
 
-export const STANDARD_LEGAL_CLAUSES = `1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de la Provincia de Córdoba N° 10.281 y reglamentación AEA 90364.
+export function getDynamicLegalClauses(params?: {
+  organization?: {
+    name?: string | null;
+    legalName?: string | null;
+    ersepLicenseNumber?: string | null;
+    ersepLicense?: string | null;
+    bankAlias?: string | null;
+    aliasCbu?: string | null;
+  };
+  validityDays?: number;
+  depositPercentage?: number;
+}): string {
+  const license =
+    params?.organization?.ersepLicenseNumber ||
+    params?.organization?.ersepLicense ||
+    "Matrícula Habilitante ERSeP";
+  const alias =
+    params?.organization?.bankAlias ||
+    params?.organization?.aliasCbu ||
+    "Alias a convenir";
+  const validity = params?.validityDays || 15;
+  const deposit = params?.depositPercentage || 50;
+  const remaining = 100 - deposit;
+
+  return `1. MARCO NORMATIVO: Tareas ejecutadas bajo la Ley de Seguridad Eléctrica de la Provincia de Córdoba N° 10.281 (${license}) y reglamentación AEA 90364.
 2. GARANTÍA LEGAL ESCRITA: Conforme a la Ley Nacional de Defensa del Consumidor N° 24.240 (Arts. 11 y 21), se otorga garantía escrita por seis (6) meses sobre la mano de obra y componentes instalados.
-3. CONDICIÓN ANTI-INFLACIÓN Y VIGENCIA: Precios firmes por el plazo de validez. Ajustes posteriores aplicarán exclusivamente si la lista oficial de distribuidoras de materiales supera el 10% de variación.
-4. CONDICIONES DE PAGO: Seña del 50% para reserva de fecha y acopio de materiales. Saldo del 50% restante contra recepción y conformidad de obra.
-5. MEDIOS HABILITADOS: Transferencia (Alias: ELECTROCBA.MP), Mercado Pago (tarjetas/dinero en cuenta) o Efectivo con recibo.`;
+3. CONDICIÓN ANTI-INFLACIÓN Y VIGENCIA: Precios firmes por ${validity} días corridos desde la emisión. Ajustes posteriores aplicarán exclusivamente si la lista oficial de distribuidoras de materiales supera el 10% de variación.
+4. CONDICIONES DE PAGO: Seña del ${deposit}% para reserva de fecha y acopio de materiales. Saldo del ${remaining}% restante contra recepción y conformidad de obra.
+5. MEDIOS HABILITADOS: Transferencia bancaria directa (Alias: ${alias}), Mercado Pago Checkout Oficial (tarjetas/dinero en cuenta) o Efectivo con recibo fiscal.`;
+}
+
+export const STANDARD_LEGAL_CLAUSES = getDynamicLegalClauses();
 
 export const manualPaymentSchema = z.object({
   jobId: z.string().min(1, "JobId requerido"),

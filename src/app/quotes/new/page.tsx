@@ -27,6 +27,7 @@ import {
 import {
   formatCurrencyARS,
   formatPhoneForWhatsApp,
+  getDynamicLegalClauses,
   STANDARD_LEGAL_CLAUSES,
   CORDOBA_NEIGHBORHOODS,
 } from "@/lib/types";
@@ -170,15 +171,37 @@ function QuoteWizardContent() {
   const [customerSearch, setCustomerSearch] = useState("");
   const debouncedSearch = useDebounce(customerSearch, 300);
 
+  // Organización del instalador
+  const [org, setOrg] = useState<{
+    name: string;
+    legalName?: string;
+    ersepLicenseNumber?: string;
+    ersepLicense?: string;
+    cuit?: string;
+    vatCondition?: string;
+    legalAddress?: string;
+    phone?: string;
+    bankAlias?: string;
+  } | null>(null);
+
+  // Alta Rápida de Comitente
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
+  const [quickName, setQuickName] = useState("");
+  const [quickPhone, setQuickPhone] = useState("+54 9 351 ");
+  const [quickAddress, setQuickAddress] = useState("");
+  const [quickNeighborhood, setQuickNeighborhood] = useState("Centro");
+  const [savingQuickCustomer, setSavingQuickCustomer] = useState(false);
+
   // Datos específicos del emplazamiento
   const [title, setTitle] = useState("Renovación de Tablero Seccional y Adecuación Normativa AEA");
   const [siteAddress, setSiteAddress] = useState("");
-  const [siteNeighborhood, setSiteNeighborhood] = useState("Nueva Córdoba");
+  const [siteNeighborhood, setSiteNeighborhood] = useState("Centro");
   const [siteNotes, setSiteNotes] = useState("");
 
   // Paso 2 y 3: Partidas y Estructura de Costos
   const [activeTab, setActiveTab] = useState<"LABOR" | "MATERIALS">("LABOR");
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>(["tablero_integral", "puesta_a_tierra"]);
+  const [taxRate, setTaxRate] = useState<number>(0);
 
   const [items, setItems] = useState<QuoteItemState[]>([
     {
@@ -213,7 +236,7 @@ function QuoteWizardContent() {
 
   // Paso 4: Condiciones Legales
   const [depositPercentage, setDepositPercentage] = useState(50);
-  const [validityDays, setValidityDays] = useState(10);
+  const [validityDays, setValidityDays] = useState(15);
   const [notes, setNotes] = useState(STANDARD_LEGAL_CLAUSES);
 
   // Estados de emisión
@@ -231,6 +254,25 @@ function QuoteWizardContent() {
 
   useEffect(() => {
     setOrigin(window.location.origin);
+
+    // Cargar perfil del instalador
+    fetch("/api/organization")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.organization) {
+          setOrg(data.organization);
+          setNotes(
+            getDynamicLegalClauses({
+              organization: data.organization,
+              validityDays: 15,
+              depositPercentage: 50,
+            })
+          );
+        }
+      })
+      .catch(() => {});
+
+    // Cargar comitentes
     fetch("/api/customers")
       .then((res) => res.json())
       .then((data) => {
@@ -242,7 +284,7 @@ function QuoteWizardContent() {
               const found = data.find((c) => c.id === current);
               if (found) {
                 setSiteAddress(found.address);
-                setSiteNeighborhood(found.neighborhood || "Nueva Córdoba");
+                setSiteNeighborhood(found.neighborhood || "Centro");
                 setSiteNotes(found.notes || "");
               }
               return current;
@@ -252,6 +294,50 @@ function QuoteWizardContent() {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (org) {
+      setNotes(
+        getDynamicLegalClauses({
+          organization: org,
+          validityDays,
+          depositPercentage,
+        })
+      );
+    }
+  }, [validityDays, depositPercentage, org]);
+
+  const handleCreateQuickCustomer = async () => {
+    if (!quickName.trim() || !quickAddress.trim()) {
+      alert("Por favor ingrese el nombre y dirección del comitente");
+      return;
+    }
+    setSavingQuickCustomer(true);
+    try {
+      const res = await fetch("/api/customers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: quickName.trim(),
+          phone: quickPhone.trim() || "+5493510000000",
+          address: quickAddress.trim(),
+          neighborhood: quickNeighborhood,
+          notes: "Alta rápida desde emisor de presupuesto",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Error al crear comitente");
+      setCustomers((prev) => [data, ...prev]);
+      handleSelectCustomer(data);
+      setShowQuickCustomer(false);
+      setQuickName("");
+      setQuickAddress("");
+    } catch (err: unknown) {
+      alert(String(err));
+    } finally {
+      setSavingQuickCustomer(false);
+    }
+  };
 
   // Filtrado de comitentes optimizado con debounce
   const filteredCustomers = useMemo(() => {
@@ -345,7 +431,7 @@ function QuoteWizardContent() {
     );
   };
 
-  // Cálculos totales
+  // Cálculos totales con discriminación de Mano de Obra, Insumos e Impuestos
   const laborSubtotal = useMemo(() => {
     return items
       .filter((i) => i.itemType === "LABOR")
@@ -358,14 +444,16 @@ function QuoteWizardContent() {
       .reduce((acc, curr) => acc + curr.quantity * curr.unitPrice, 0);
   }, [items]);
 
-  const totalAmount = laborSubtotal + materialsSubtotal;
+  const netAmount = laborSubtotal + materialsSubtotal;
+  const taxAmount = Math.round((netAmount * taxRate) / 100);
+  const totalAmount = netAmount + taxAmount;
   const depositAmount = Math.round((totalAmount * depositPercentage) / 100);
   const remainingAmount = totalAmount - depositAmount;
 
   // Emisión final formal
   const handleFinalSubmit = async () => {
     if (!selectedCustomerId) {
-      alert("Debe seleccionar un comitente en el Paso 1.");
+      alert("Debe seleccionar o registrar un comitente en el Paso 1.");
       setCurrentStep(1);
       return;
     }
@@ -386,6 +474,7 @@ function QuoteWizardContent() {
           title,
           depositPercentage,
           validityDays,
+          taxRate,
           notes,
           items: items.map(({ description, itemType, quantity, unitPrice }) => ({
             description,
@@ -428,13 +517,17 @@ function QuoteWizardContent() {
   };
 
   // Mensaje formal de WhatsApp sin emojis ni informalismos
+  const orgNameDisplay = org?.name || "ElectroCba";
+  const orgLicenseDisplay = org?.ersepLicenseNumber || org?.ersepLicense || "Matrícula Habilitada ERSeP";
+  const signerDisplay = org?.legalName || org?.name || "Instalador Habilitado";
+
   const waMessage =
     selectedCustomer && createdQuote
       ? `Estimado/a ${selectedCustomer.name}:\n\nPor medio del presente le remitimos el Presupuesto Formal N° ${
           createdQuote.quoteNumber || "EC-2026-0042"
-        } emitido por ElectroCba (Matrícula ERSeP N° 14892) correspondiente a: ${createdQuote.title}.\n\nImporte Total: ${formatCurrencyARS(
+        } emitido por ${orgNameDisplay} (${orgLicenseDisplay}) correspondiente a: ${createdQuote.title}.\n\nImporte Total: ${formatCurrencyARS(
           createdQuote.totalAmount
-        )} (Vigencia legal: ${validityDays} días corridos).\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo del 50% en el siguiente enlace oficial:\n${publicUrl}\n\nAsimismo, puede descargar el instrumento en formato PDF formal:\n${pdfDownloadUrl}\n\nAtentamente,\nMarcos Romero - Instalador Electricista Habilitado Cat. III.`
+        )} (Vigencia legal: ${validityDays} días corridos).\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo del ${depositPercentage}% en el siguiente enlace oficial:\n${publicUrl}\n\nAsimismo, puede descargar el instrumento en formato PDF formal:\n${pdfDownloadUrl}\n\nAtentamente,\n${signerDisplay} - ${orgLicenseDisplay}.`
       : "";
 
   const waShareUrl = selectedCustomer
@@ -623,15 +716,106 @@ function QuoteWizardContent() {
                   <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B]">
                     Seleccionar Comitente *
                   </label>
-                  <Link
-                    href="/customers/new"
-                    prefetch={true}
-                    className="text-xs font-medium text-[#0B132B] hover:underline flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickCustomer((v) => !v)}
+                    className="text-xs font-medium text-[#0B132B] hover:text-[#C5A059] flex items-center gap-1 cursor-pointer transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5 text-[#C5A059]" strokeWidth={1.5} />
-                    <span>Dar de alta nuevo comitente</span>
-                  </Link>
+                    <span>{showQuickCustomer ? "Ocultar Alta Rápida" : "Alta Rápida de Comitente"}</span>
+                  </button>
                 </div>
+
+                {/* FORMULARIO DE ALTA RÁPIDA DE COMITENTE */}
+                {showQuickCustomer && (
+                  <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#CBD5E1] space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-[#0B132B]">
+                        Nuevo Comitente Directo
+                      </span>
+                      <span className="text-[10px] text-[#475569]">
+                        Se vinculará automáticamente a este presupuesto
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#475569] uppercase mb-0.5">
+                          Nombre y Apellido / Razón Social *
+                        </label>
+                        <input
+                          type="text"
+                          value={quickName}
+                          onChange={(e) => setQuickName(e.target.value)}
+                          placeholder="Ej: Ing. Roberto Sánchez"
+                          className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-xs font-normal bg-white text-[#0B132B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#475569] uppercase mb-0.5">
+                          Teléfono / WhatsApp *
+                        </label>
+                        <input
+                          type="text"
+                          value={quickPhone}
+                          onChange={(e) => setQuickPhone(e.target.value)}
+                          placeholder="+54 9 351 ..."
+                          className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-xs font-normal bg-white text-[#0B132B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#475569] uppercase mb-0.5">
+                          Dirección del Inmueble *
+                        </label>
+                        <input
+                          type="text"
+                          value={quickAddress}
+                          onChange={(e) => setQuickAddress(e.target.value)}
+                          placeholder="Ej: Av. Colón 1250 4° B"
+                          className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-xs font-normal bg-white text-[#0B132B]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-medium text-[#475569] uppercase mb-0.5">
+                          Barrio de Córdoba
+                        </label>
+                        <select
+                          value={quickNeighborhood}
+                          onChange={(e) => setQuickNeighborhood(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-xs font-normal bg-white text-[#0B132B]"
+                        >
+                          {CORDOBA_NEIGHBORHOODS.map((b) => (
+                            <option key={b} value={b}>
+                              {b}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowQuickCustomer(false)}
+                        className="px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-xs text-[#475569] hover:bg-white cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingQuickCustomer}
+                        onClick={handleCreateQuickCustomer}
+                        className="px-4 py-1.5 rounded-lg bg-[#0B132B] hover:bg-[#1C2541] disabled:opacity-50 text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Check className="w-3.5 h-3.5 text-[#C5A059]" strokeWidth={2} />
+                        <span>{savingQuickCustomer ? "Guardando..." : "Guardar y Asignar"}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="relative">
                   <Search className="w-4 h-4 text-[#475569] absolute left-3.5 top-3" strokeWidth={1.5} />
@@ -645,30 +829,46 @@ function QuoteWizardContent() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto p-1">
-                  {filteredCustomers.map((c) => {
-                    const isSelected = selectedCustomerId === c.id;
-                    return (
+                  {filteredCustomers.length === 0 ? (
+                    <div className="col-span-full p-4 text-center rounded-xl border border-dashed border-[#CBD5E1] bg-[#F8FAFC]">
+                      <p className="text-xs text-[#475569] mb-2 font-normal">
+                        No hay comitentes registrados que coincidan con la búsqueda.
+                      </p>
                       <button
-                        key={c.id}
                         type="button"
-                        onClick={() => handleSelectCustomer(c)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          isSelected
-                            ? "border-[#0B132B] bg-[#0B132B]/5 ring-1 ring-[#0B132B]"
-                            : "border-[#E2E8F0] hover:bg-[#F8FAFC]"
-                        }`}
+                        onClick={() => setShowQuickCustomer(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#0B132B] text-white text-xs font-medium rounded-lg hover:bg-[#1C2541] cursor-pointer"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-[#0B132B] truncate">{c.name}</span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#0B132B]" strokeWidth={2} />}
-                        </div>
-                        <p className="text-[11px] text-[#475569] truncate font-normal mt-0.5">{c.address}</p>
-                        <span className="text-[10px] text-[#9A6E24] font-medium block mt-1">
-                          {c.neighborhood}
-                        </span>
+                        <Plus className="w-3 h-3 text-[#C5A059]" strokeWidth={2} />
+                        <span>Crear Comitente Ahora</span>
                       </button>
-                    );
-                  })}
+                    </div>
+                  ) : (
+                    filteredCustomers.map((c) => {
+                      const isSelected = selectedCustomerId === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleSelectCustomer(c)}
+                          className={`p-3 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "border-[#0B132B] bg-[#0B132B]/5 ring-1 ring-[#0B132B]"
+                              : "border-[#E2E8F0] hover:bg-[#F8FAFC]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-[#0B132B] truncate">{c.name}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-[#0B132B]" strokeWidth={2} />}
+                          </div>
+                          <p className="text-[11px] text-[#475569] truncate font-normal mt-0.5">{c.address}</p>
+                          <span className="text-[10px] text-[#9A6E24] font-medium block mt-1">
+                            {c.neighborhood}
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -981,8 +1181,26 @@ function QuoteWizardContent() {
                 </button>
               </div>
 
-              {/* CONDICIONES DE COBRO Y VIGENCIA */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-[#E2E8F0]">
+              {/* CONDICIONES DE COBRO, IMPUESTOS Y VIGENCIA */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-[#E2E8F0]">
+                <div className="p-3.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
+                  <label className="block text-xs font-medium text-[#0B132B] uppercase tracking-wider mb-1">
+                    Condición Impositiva / Alícuota IVA
+                  </label>
+                  <select
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] text-xs font-semibold bg-white text-[#0B132B]"
+                  >
+                    <option value={0}>0% - Monotributo / Exento</option>
+                    <option value={10.5}>10.5% - IVA Alícuota Reducida</option>
+                    <option value={21}>21% - IVA Alícuota General</option>
+                  </select>
+                  <span className="text-[11px] text-[#475569] block mt-1">
+                    {taxRate > 0 ? `Impuestos: ${formatCurrencyARS(taxAmount)}` : "Sin discriminación tributaria"}
+                  </span>
+                </div>
+
                 <div className="p-3.5 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
                   <label className="block text-xs font-medium text-[#0B132B] uppercase tracking-wider mb-1">
                     Porcentaje de Seña Requerido (%)
@@ -994,10 +1212,10 @@ function QuoteWizardContent() {
                       max="100"
                       value={depositPercentage}
                       onChange={(e) => setDepositPercentage(Number(e.target.value))}
-                      className="w-24 px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-sm font-semibold bg-white tabular-nums"
+                      className="w-20 px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-sm font-semibold bg-white tabular-nums"
                     />
                     <span className="text-xs text-[#475569] font-normal tabular-nums">
-                      Importe de reserva: <strong className="text-[#166534] font-semibold">{formatCurrencyARS(depositAmount)}</strong>
+                      Anticipo: <strong className="text-[#166534] font-semibold">{formatCurrencyARS(depositAmount)}</strong>
                     </span>
                   </div>
                 </div>
@@ -1013,12 +1231,46 @@ function QuoteWizardContent() {
                       max="60"
                       value={validityDays}
                       onChange={(e) => setValidityDays(Number(e.target.value))}
-                      className="w-24 px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-sm font-semibold bg-white tabular-nums"
+                      className="w-20 px-3 py-1.5 rounded-lg border border-[#E2E8F0] text-sm font-semibold bg-white tabular-nums"
                     />
                     <span className="text-xs text-[#475569] font-normal">
-                      Cláusula anti-inflación con precios firmes
+                      Cláusula anti-inflación
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* DESGLOSE RESUMIDO DE COSTOS */}
+              <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0] space-y-2 text-xs">
+                <div className="flex justify-between text-[#475569]">
+                  <span>Subtotal Mano de Obra:</span>
+                  <span className="font-medium text-[#0B132B] tabular-nums">{formatCurrencyARS(laborSubtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[#475569]">
+                  <span>Subtotal Insumos y Materiales IRAM:</span>
+                  <span className="font-medium text-[#0B132B] tabular-nums">{formatCurrencyARS(materialsSubtotal)}</span>
+                </div>
+                <div className="flex justify-between text-[#475569] pt-1 border-t border-[#E2E8F0]">
+                  <span>Subtotal Neto:</span>
+                  <span className="font-semibold text-[#0B132B] tabular-nums">{formatCurrencyARS(netAmount)}</span>
+                </div>
+                {taxRate > 0 && (
+                  <div className="flex justify-between text-[#475569]">
+                    <span>IVA / Retenciones ({taxRate}%):</span>
+                    <span className="font-medium text-[#0B132B] tabular-nums">{formatCurrencyARS(taxAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm font-bold text-[#0B132B] pt-1 border-t border-[#E2E8F0]">
+                  <span>Total General del Presupuesto:</span>
+                  <span className="text-[#C5A059] tabular-nums">{formatCurrencyARS(totalAmount)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-[#166534] pt-1">
+                  <span>Seña Requerida ({depositPercentage}%):</span>
+                  <span className="font-semibold tabular-nums">{formatCurrencyARS(depositAmount)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-[#475569]">
+                  <span>Saldo a la Finalización ({100 - depositPercentage}%):</span>
+                  <span className="font-medium tabular-nums">{formatCurrencyARS(remainingAmount)}</span>
                 </div>
               </div>
 
@@ -1067,13 +1319,17 @@ function QuoteWizardContent() {
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-medium text-[#475569] block">Habilitación Oficial</span>
-                    <p className="font-semibold text-[#0B132B] mt-0.5">Marcos Romero • ERSeP Cat. III - Mat. 14892</p>
-                    <p className="text-[#475569] font-normal">CUIT 20-33445566-9 • Monotributo</p>
+                    <p className="font-semibold text-[#0B132B] mt-0.5">
+                      {org?.legalName || org?.name || "Instalador Electricista"} • {org?.ersepLicenseNumber || org?.ersepLicense || "Matrícula Habilitada ERSeP"}
+                    </p>
+                    <p className="text-[#475569] font-normal">
+                      CUIT {org?.cuit || "No informado"} • {org?.vatCondition || "Monotributista"}
+                    </p>
                   </div>
                 </div>
 
                 {/* Balances Tabulares */}
-                <div className="pt-3 border-t border-[#E2E8F0] grid grid-cols-3 gap-2 text-center">
+                <div className="pt-3 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                   <div className="p-2.5 bg-white rounded-lg border border-[#E2E8F0]">
                     <span className="text-[10px] text-[#475569] uppercase font-medium block">Mano de Obra</span>
                     <span className="text-xs font-semibold text-[#0B132B] tabular-nums mt-0.5 block">
@@ -1086,8 +1342,14 @@ function QuoteWizardContent() {
                       {formatCurrencyARS(materialsSubtotal)}
                     </span>
                   </div>
+                  <div className="p-2.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                    <span className="text-[10px] text-[#166534] uppercase font-medium block">Seña ({depositPercentage}%)</span>
+                    <span className="text-xs font-semibold text-[#166534] tabular-nums mt-0.5 block">
+                      {formatCurrencyARS(depositAmount)}
+                    </span>
+                  </div>
                   <div className="p-2.5 bg-[#0B132B] text-white rounded-lg">
-                    <span className="text-[10px] text-slate-300 uppercase font-medium block">Monto Total</span>
+                    <span className="text-[10px] text-slate-300 uppercase font-medium block">Total Final</span>
                     <span className="text-xs font-semibold text-[#C5A059] tabular-nums mt-0.5 block">
                       {formatCurrencyARS(totalAmount)}
                     </span>

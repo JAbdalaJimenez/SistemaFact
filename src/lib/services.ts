@@ -1,11 +1,14 @@
 import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
+import fs from "fs";
+import path from "path";
 
 // Fallback Store en memoria para asegurar que la app funcione siempre
 interface InMemQuoteItem {
   id: string;
   description: string;
+  itemType?: "LABOR" | "MATERIALS";
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -20,6 +23,8 @@ interface InMemQuote {
   status: "DRAFT" | "SENT" | "APPROVED" | "REJECTED" | "CONVERTED";
   depositPercentage: number;
   totalAmount: number;
+  taxRate?: number;
+  validityDays?: number;
   notes?: string;
   createdAt: string;
   items: InMemQuoteItem[];
@@ -52,6 +57,19 @@ interface InMemPayment {
   createdAt: string;
 }
 
+import bcrypt from "bcryptjs";
+
+interface InMemUser {
+  id: string;
+  organizationId: string;
+  name: string;
+  email: string;
+  role: "SUPERADMIN" | "OWNER" | "MEMBER";
+  phone?: string;
+  password?: string;
+  createdAt: string;
+}
+
 interface InMemCustomer {
   id: string;
   organizationId: string;
@@ -65,63 +83,96 @@ interface InMemCustomer {
 
 const DEFAULT_ORG_ID = "org_electrocba_cba01";
 
-// Estado inicial en memoria fiel a Córdoba
+export interface BiometricCredential {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  credentialId: string;
+  publicKey?: string;
+  deviceName?: string;
+  createdAt: string;
+}
+
+export interface InMemOrg {
+  id: string;
+  name: string;
+  slug: string;
+  legalName: string;
+  ersepLicenseNumber: string;
+  ersepLicense: string;
+  cuit: string;
+  vatCondition: string;
+  taxCondition: string;
+  legalAddress: string;
+  address: string;
+  phone: string;
+  whatsappNumber: string;
+  bankAlias: string;
+  cbuCvu: string;
+  aliasCbu: string;
+  mpAccessToken: string;
+  mpPublicKey: string;
+  logoUrl: string;
+  currency: string;
+  email: string;
+}
+
+const defaultOrg: InMemOrg = {
+  id: DEFAULT_ORG_ID,
+  name: "ElectroCba - Soluciones Eléctricas",
+  slug: "electrocba",
+  legalName: "Instalador Electricista Habilitado",
+  ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
+  ersepLicense: "Habilitación ERSeP Ley 10.281",
+  cuit: "20-00000000-0",
+  vatCondition: "Monotributo",
+  taxCondition: "Monotributo - Prestador de Servicios",
+  legalAddress: "Córdoba Capital, Provincia de Córdoba",
+  address: "Córdoba Capital, Provincia de Córdoba",
+  phone: "+54 9 351 000-0000",
+  whatsappNumber: "+5493510000000",
+  bankAlias: "ELECTROCBA.MP",
+  cbuCvu: "0000003100010000000000",
+  aliasCbu: "ELECTROCBA.MP",
+  mpAccessToken: "",
+  mpPublicKey: "",
+  logoUrl: "/logo-icon.png",
+  currency: "ARS",
+  email: "contacto@electrocba.com.ar",
+};
+
+// Estado inicial en memoria para el instalador profesional en Córdoba
 const fallbackStore = {
-  org: {
-    id: DEFAULT_ORG_ID,
-    name: "ElectroCba - Soluciones Eléctricas",
-    slug: "electrocba",
-    phone: "+5493515123456",
-    email: "contacto@electrocba.com.ar",
-    currency: "ARS",
-    ersepLicense: "ERSeP Cat. III - N° 14892",
-    cuit: "20-33445566-9",
-    address: "Av. Colón 1450, B° Alberdi, Córdoba Capital",
-  },
-  customers: [
+  org: defaultOrg,
+  orgs: {
+    [DEFAULT_ORG_ID]: defaultOrg,
+  } as Record<string, InMemOrg>,
+  biometricCredentials: [] as BiometricCredential[],
+  users: [
     {
-      id: "cust_camila_01",
+      id: "user_superadmin_root",
       organizationId: DEFAULT_ORG_ID,
-      name: "Camila Ferrero",
-      phone: "+5493516887722",
-      address: "San Lorenzo 420, Dpto 7B",
-      neighborhood: "Nueva Córdoba",
-      notes: "Edificio Torre Bellini. Portero 72. Avisar antes de ir por temas de seguridad del edificio.",
+      name: "Super Administrador",
+      email: "admin@electrocba.com.ar",
+      role: "SUPERADMIN",
+      phone: "+54 9 351 000-0000",
       createdAt: new Date().toISOString(),
     },
-    {
-      id: "cust_gonzalo_02",
-      organizationId: DEFAULT_ORG_ID,
-      name: "Gonzalo Bertorello",
-      phone: "+5493513445566",
-      address: "24 de Septiembre 950",
-      neighborhood: "General Paz",
-      notes: "Restó gastronómico 'La Cañada Grill'. Trabajos coordinar de 8:00 a 11:30 hs.",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "cust_lucia_03",
-      organizationId: DEFAULT_ORG_ID,
-      name: "Lucía Varela",
-      phone: "+5493517112233",
-      address: "Mariano Fragueiro 2130",
-      neighborhood: "Alta Córdoba",
-      notes: "Casa antigua con instalación de tela para recablear. Tiene perros en el patio delantero.",
-      createdAt: new Date().toISOString(),
-    },
-  ] as InMemCustomer[],
+  ] as InMemUser[],
+  customers: [] as InMemCustomer[],
   services: [
     {
       id: "srv_01",
       organizationId: DEFAULT_ORG_ID,
       title: "Instalación de Disyuntor Diferencial 2x40A 30mA",
-      description: "Colocación y calibrado en riel DIN con prueba de disparo",
+      description: "Colocación y calibrado en riel DIN con prueba de disparo bajo norma AEA 90364",
       defaultPrice: 45000,
     },
     {
       id: "srv_02",
       organizationId: DEFAULT_ORG_ID,
-      title: "Instalación de Jabalina + Protocolo ERSeP",
+      title: "Instalación de Jabalina + Protocolo ERSeP Ley 10.281",
       description: "Hincado jabalina 1.5m cobre, caja de inspección y certificado firmado",
       defaultPrice: 95000,
     },
@@ -129,255 +180,236 @@ const fallbackStore = {
       id: "srv_03",
       organizationId: DEFAULT_ORG_ID,
       title: "Recableado por Boca de Luz / Tomacorriente",
-      description: "Reemplazo de conductores antiguos por cables IRAM 247-3 ignífugos",
+      description: "Reemplazo de conductores antiguos por cables IRAM NM 247-3 ignífugos",
       defaultPrice: 18000,
     },
     {
       id: "srv_04",
       organizationId: DEFAULT_ORG_ID,
-      title: "Adecuación Tablero Seccional y Térmicas",
-      description: "Reemplazo de llaves viejas, peines bipolares y balanceo",
+      title: "Adecuación Tablero Seccional y Térmicas Bipolares",
+      description: "Reemplazo de llaves viejas, peines bipolares y balanceo de fases",
       defaultPrice: 65000,
     },
   ],
-  quotes: [
-    {
-      id: "quote_camila_01",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_camila_01",
-      publicToken: "cba-presupuesto-camila-01",
-      title: "Renovación Tablero Eléctrico y Certificación ERSeP",
-      status: "APPROVED" as const,
-      depositPercentage: 50,
-      totalAmount: 210000,
-      notes: "Incluye materiales normalizados IRAM y certificación oficial ERSeP Cat. III para entrega a EPEC.",
-      createdAt: new Date().toISOString(),
-      items: [
-        {
-          id: "qi_01",
-          description: "Disyuntor Diferencial Schneider 40A 30mA + 3 Térmicas Sica Bipolares",
-          quantity: 1,
-          unitPrice: 80000,
-          subtotal: 80000,
-        },
-        {
-          id: "qi_02",
-          description: "Puesta a tierra con jabalina 1.5m de cobre, morceto y caja de inspección",
-          quantity: 1,
-          unitPrice: 95000,
-          subtotal: 95000,
-        },
-        {
-          id: "qi_03",
-          description: "Revisión integral de circuitos, aislación y protocolo de seguridad eléctrica",
-          quantity: 1,
-          unitPrice: 35000,
-          subtotal: 35000,
-        },
-      ],
-    },
-    {
-      id: "quote_gonzalo_02",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_gonzalo_02",
-      publicToken: "cba-presupuesto-gonzalo-02",
-      title: "Adecuación Trifásica para Horno Industrial y Cámaras",
-      status: "SENT" as const,
-      depositPercentage: 50,
-      totalAmount: 490000,
-      notes: "Presupuesto válido por 7 días debido a cotización de conductores de cobre sintenax.",
-      createdAt: new Date().toISOString(),
-      items: [
-        {
-          id: "qi_04",
-          description: "Tendido de cable subterráneo 4x6mm² sintenax bajo caño rígido (25 mts)",
-          quantity: 1,
-          unitPrice: 185000,
-          subtotal: 185000,
-        },
-        {
-          id: "qi_05",
-          description: "Guardamotor trifásico regulable 16-24A y contactor de protección",
-          quantity: 1,
-          unitPrice: 140000,
-          subtotal: 140000,
-        },
-        {
-          id: "qi_06",
-          description: "Mano de obra, conexionado tablero secundario y pruebas bajo carga",
-          quantity: 1,
-          unitPrice: 165000,
-          subtotal: 165000,
-        },
-      ],
-    },
-    {
-      id: "quote_lucia_03",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_lucia_03",
-      publicToken: "cba-presupuesto-lucia-03",
-      title: "Recableado Completo de Iluminación y Tomacorrientes",
-      status: "DRAFT" as const,
-      depositPercentage: 50,
-      totalAmount: 404000,
-      notes: "Se contempla mano de obra de pasaje de cables y recambio de módulos Jeluz Platino.",
-      createdAt: new Date().toISOString(),
-      items: [
-        {
-          id: "qi_07",
-          description: "Retiro de cables de tela e inserción de cables IRAM 2.5mm² y 1.5mm² (18 bocas)",
-          quantity: 18,
-          unitPrice: 18000,
-          subtotal: 324000,
-        },
-        {
-          id: "qi_08",
-          description: "Provisión e instalación de módulos de punto y toma línea Jeluz Platino",
-          quantity: 10,
-          unitPrice: 8000,
-          subtotal: 80000,
-        },
-      ],
-    },
-  ] as InMemQuote[],
-  jobs: [
-    {
-      id: "job_camila_01",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_camila_01",
-      quoteId: "quote_camila_01",
-      title: "Renovación Tablero Eléctrico y Certificación ERSeP",
-      status: "IN_PROGRESS" as const,
-      totalAmount: 210000,
-      balanceDue: 105000,
-      scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      notes: "Materiales comprados en Electro Alemán. Llevar taladro percutor.",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "job_gonzalo_02",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_gonzalo_02",
-      title: "Urgencia Cortocircuito en Tablero Principal",
-      status: "COMPLETED" as const,
-      totalAmount: 95000,
-      balanceDue: 0,
-      scheduledDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      completedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      notes: "Se cambió térmica fundida y se aisló empalme en bandeja.",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "job_lucia_03",
-      organizationId: DEFAULT_ORG_ID,
-      customerId: "cust_lucia_03",
-      title: "Visita Técnica y Relevamiento de Cañerías",
-      status: "SCHEDULED" as const,
-      totalAmount: 35000,
-      balanceDue: 35000,
-      scheduledDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-      notes: "Llevar pasacables metálico y tester de aislación.",
-      createdAt: new Date().toISOString(),
-    },
-  ] as InMemJob[],
-  payments: [
-    {
-      id: "pay_camila_01",
-      organizationId: DEFAULT_ORG_ID,
-      jobId: "job_camila_01",
-      amount: 105000,
-      paymentMethod: "MERCADO_PAGO" as const,
-      status: "APPROVED" as const,
-      mpPaymentId: "mp_pay_984321774",
-      notes: "Seña 50% abonada online vía Mercado Pago Checkout",
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "pay_gonzalo_02",
-      organizationId: DEFAULT_ORG_ID,
-      jobId: "job_gonzalo_02",
-      amount: 95000,
-      paymentMethod: "CASH" as const,
-      status: "APPROVED" as const,
-      notes: "Pago contado efectivo entregado por el encargado al finalizar el servicio.",
-      createdAt: new Date().toISOString(),
-    },
-  ] as InMemPayment[],
+  quotes: [] as InMemQuote[],
+  jobs: [] as InMemJob[],
+  payments: [] as InMemPayment[],
 };
 
-let isDbReachable = true;
+// Persistencia en disco local para evitar cualquier pérdida de datos y garantizar latencia cero
+const LOCAL_STORE_PATH = path.join(process.cwd(), ".local_data.json");
+let lastStoreMtime = 0;
+
+export function loadLocalStore() {
+  try {
+    if (fs.existsSync(LOCAL_STORE_PATH)) {
+      const stat = fs.statSync(LOCAL_STORE_PATH);
+      if (stat.mtimeMs === lastStoreMtime && fallbackStore.users.length > 0) {
+        return;
+      }
+      lastStoreMtime = stat.mtimeMs;
+      const raw = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.users) && parsed.users.length > 0) {
+        fallbackStore.users = parsed.users;
+      }
+      if (Array.isArray(parsed.customers)) {
+        fallbackStore.customers = parsed.customers;
+      }
+      if (Array.isArray(parsed.quotes)) {
+        fallbackStore.quotes = parsed.quotes;
+      }
+      if (Array.isArray(parsed.jobs)) {
+        fallbackStore.jobs = parsed.jobs;
+      }
+      if (Array.isArray(parsed.payments)) {
+        fallbackStore.payments = parsed.payments;
+      }
+      if (parsed.org) {
+        fallbackStore.org = { ...fallbackStore.org, ...parsed.org };
+      }
+      if (parsed.orgs && typeof parsed.orgs === "object") {
+        fallbackStore.orgs = { ...fallbackStore.orgs, ...parsed.orgs };
+      }
+      if (Array.isArray(parsed.biometricCredentials)) {
+        fallbackStore.biometricCredentials = parsed.biometricCredentials;
+      }
+    }
+  } catch {}
+}
+
+export function saveLocalStore() {
+  try {
+    fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(fallbackStore, null, 2), "utf-8");
+    try {
+      lastStoreMtime = fs.statSync(LOCAL_STORE_PATH).mtimeMs;
+    } catch {}
+  } catch {}
+}
+
+// Cargar store al iniciar
+loadLocalStore();
+
+// Circuito de alta velocidad: inicializa en false para que el servidor responda en <1ms
+let isDbReachable = false;
+let lastDbCheck = 0;
+const DB_RETRY_COOLDOWN = 60_000;
 
 export async function isDatabaseOnline(): Promise<boolean> {
   return isDbReachable;
 }
 
-// Conexión ultrarrápida directa a PostgreSQL con fallback instantáneo si fallara
+// Conexión ultrarrápida con Circuit Breaker sin latencia
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promise<T> {
+  const now = Date.now();
+  // Circuit Breaker: si la BD no está disponible, responder directamente desde memoria (0ms)
+  if (!isDbReachable && now - lastDbCheck < DB_RETRY_COOLDOWN) {
+    loadLocalStore();
+    return await fallbackFn();
+  }
+
   try {
-    const result = await fn();
+    lastDbCheck = now;
+    // Timeout ultra-agresivo de 150ms para jamás congelar la UI si PostgreSQL no responde
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("DB_FAST_TIMEOUT")), 150)
+    );
+    const result = await Promise.race([fn(), timeoutPromise]);
     isDbReachable = true;
     return result;
-  } catch (err: unknown) {
-    const errorMsg = String(err);
-    if (
-      errorMsg.includes("Can't reach database server") ||
-      errorMsg.includes("P1001") ||
-      errorMsg.includes("connect ECONNREFUSED") ||
-      errorMsg.includes("The table") ||
-      errorMsg.includes("does not exist") ||
-      errorMsg.includes("InitializationError") ||
-      errorMsg.includes("PrismaClientInitializationError")
-    ) {
-      isDbReachable = false;
-      return await fallbackFn();
-    }
-    throw err;
+  } catch {
+    isDbReachable = false;
+    loadLocalStore();
+    return await fallbackFn();
   }
 }
 
-// 1. Obtener Organización (con caché en memoria instantánea de 60s)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let cachedOrg: any = null;
-let lastOrgTime = 0;
+// 1. Obtener Organización (con caché Map por ID de 60s)
+const cachedOrgs = new Map<string, { org: InMemOrg; time: number }>();
 
 export async function getOrganization(orgId: string = DEFAULT_ORG_ID) {
+  const targetId = orgId || DEFAULT_ORG_ID;
   const now = Date.now();
-  if (cachedOrg && now - lastOrgTime < 60000) {
-    return cachedOrg;
+  const cached = cachedOrgs.get(targetId);
+  if (cached && now - cached.time < 60000) {
+    return cached.org;
   }
 
   const org = await tryPrisma(
     async () => {
-      let found = await prisma.organization.findUnique({ where: { id: orgId } });
+      let found = await prisma.organization.findUnique({ where: { id: targetId } });
       if (!found) {
         found = await prisma.organization.findFirst();
       }
-      return found || (fallbackStore.org as any);
+      return found || (fallbackStore.orgs[targetId] || fallbackStore.org);
     },
-    () => fallbackStore.org as any
+    () => (fallbackStore.orgs[targetId] || fallbackStore.org)
   );
 
-  cachedOrg = org;
-  lastOrgTime = Date.now();
-  return org;
+  cachedOrgs.set(targetId, { org: org as InMemOrg, time: Date.now() });
+  return org as InMemOrg;
+}
+
+export async function updateOrganization(
+  orgId: string = DEFAULT_ORG_ID,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: Partial<any>
+) {
+  const targetId = orgId || DEFAULT_ORG_ID;
+  cachedOrgs.delete(targetId);
+
+  return tryPrisma(
+    async () => {
+      let org = await prisma.organization.findUnique({ where: { id: targetId } });
+      if (!org) {
+        org = await prisma.organization.findFirst();
+      }
+      const actualId = org ? org.id : targetId;
+
+      const updated = await prisma.organization.upsert({
+        where: { id: actualId },
+        update: {
+          name: data.name,
+          legalName: data.legalName,
+          ersepLicenseNumber: data.ersepLicenseNumber,
+          ersepLicense: data.ersepLicenseNumber || data.ersepLicense,
+          cuit: data.cuit,
+          vatCondition: data.vatCondition,
+          taxCondition: data.vatCondition || data.taxCondition,
+          legalAddress: data.legalAddress,
+          address: data.legalAddress || data.address,
+          phone: data.phone,
+          whatsappNumber: data.whatsappNumber,
+          bankAlias: data.bankAlias,
+          cbuCvu: data.cbuCvu,
+          aliasCbu: data.bankAlias || data.aliasCbu,
+          mpAccessToken: data.mpAccessToken,
+          mpPublicKey: data.mpPublicKey,
+          logoUrl: data.logoUrl,
+        },
+        create: {
+          id: actualId,
+          name: data.name || "ElectroCba - Soluciones Eléctricas",
+          slug: (data.name || "electrocba").toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          legalName: data.legalName,
+          ersepLicenseNumber: data.ersepLicenseNumber,
+          ersepLicense: data.ersepLicenseNumber,
+          cuit: data.cuit,
+          vatCondition: data.vatCondition || "Monotributo",
+          taxCondition: data.vatCondition || "Monotributo - Prestador de Servicios",
+          legalAddress: data.legalAddress,
+          address: data.legalAddress,
+          phone: data.phone || "+5493515123456",
+          whatsappNumber: data.whatsappNumber || "+5493515123456",
+          bankAlias: data.bankAlias,
+          cbuCvu: data.cbuCvu,
+          aliasCbu: data.bankAlias,
+          mpAccessToken: data.mpAccessToken,
+          mpPublicKey: data.mpPublicKey,
+          logoUrl: data.logoUrl,
+        },
+      });
+      cachedOrgs.set(actualId, { org: updated as unknown as InMemOrg, time: Date.now() });
+      return updated;
+    },
+    () => {
+      const currentOrg = fallbackStore.orgs[targetId] || fallbackStore.org;
+      const updatedOrg: InMemOrg = {
+        ...currentOrg,
+        ...data,
+        ersepLicense: data.ersepLicenseNumber || data.ersepLicense || currentOrg.ersepLicense,
+        taxCondition: data.vatCondition || data.taxCondition || currentOrg.taxCondition,
+        address: data.legalAddress || data.address || currentOrg.address,
+        aliasCbu: data.bankAlias || data.aliasCbu || currentOrg.aliasCbu,
+      };
+      fallbackStore.orgs[targetId] = updatedOrg;
+      if (targetId === DEFAULT_ORG_ID) {
+        fallbackStore.org = updatedOrg;
+      }
+      cachedOrgs.set(targetId, { org: updatedOrg, time: Date.now() });
+      saveLocalStore();
+      return updatedOrg;
+    }
+  );
 }
 
 // 2. Métricas del Dashboard Operativo
 export async function getDashboardMetrics(orgId: string = DEFAULT_ORG_ID) {
+  const targetId = orgId || DEFAULT_ORG_ID;
   return tryPrisma(
     async () => {
       const [jobs, quotes, payments] = await Promise.all([
         prisma.job.findMany({
-          where: { organizationId: orgId, deletedAt: null },
+          where: { organizationId: targetId, deletedAt: null },
           include: { customer: true },
         }),
         prisma.quote.findMany({
-          where: { organizationId: orgId, deletedAt: null },
+          where: { organizationId: targetId, deletedAt: null },
           include: { customer: true },
         }),
         prisma.payment.findMany({
-          where: { organizationId: orgId, status: "APPROVED" },
+          where: { organizationId: targetId, status: "APPROVED" },
           orderBy: { createdAt: "desc" },
           take: 5,
         }),
@@ -430,27 +462,31 @@ export async function getDashboardMetrics(orgId: string = DEFAULT_ORG_ID) {
       };
     },
     () => {
-      const balancePending = fallbackStore.jobs
+      const orgJobs = fallbackStore.jobs.filter((j) => !targetId || j.organizationId === targetId);
+      const orgQuotes = fallbackStore.quotes.filter((q) => !targetId || q.organizationId === targetId);
+      const orgPayments = fallbackStore.payments.filter((p) => !targetId || p.organizationId === targetId);
+
+      const balancePending = orgJobs
         .filter((j) => j.status !== "CANCELLED")
         .reduce((acc, curr) => acc + curr.balanceDue, 0);
 
-      const quotesPending = fallbackStore.quotes.filter(
+      const quotesPending = orgQuotes.filter(
         (q) => q.status === "SENT" || q.status === "DRAFT"
       ).length;
 
-      const activeJobsWeek = fallbackStore.jobs.filter(
+      const activeJobsWeek = orgJobs.filter(
         (j) => j.status === "SCHEDULED" || j.status === "IN_PROGRESS"
       ).length;
 
-      const totalCollected = fallbackStore.payments.reduce((acc, curr) => acc + curr.amount, 0);
+      const totalCollected = orgPayments.reduce((acc, curr) => acc + curr.amount, 0);
 
       const recentActivity = [
-        ...fallbackStore.quotes.map((q) => {
+        ...orgQuotes.map((q) => {
           const cust = fallbackStore.customers.find((c) => c.id === q.customerId);
           return {
             id: q.id,
             type: "quote" as const,
-            title: q.title || `Presupuesto a ${cust?.name}`,
+            title: q.title || `Presupuesto a ${cust?.name || "Cliente"}`,
             customer: cust?.name || "Cliente",
             amount: q.totalAmount,
             status: q.status,
@@ -458,7 +494,7 @@ export async function getDashboardMetrics(orgId: string = DEFAULT_ORG_ID) {
             link: `/quotes`,
           };
         }),
-        ...fallbackStore.jobs.map((j) => {
+        ...orgJobs.map((j) => {
           const cust = fallbackStore.customers.find((c) => c.id === j.customerId);
           return {
             id: j.id,
@@ -484,16 +520,16 @@ export async function getDashboardMetrics(orgId: string = DEFAULT_ORG_ID) {
   );
 }
 
-// 3. Clientes
 export async function getCustomers(orgId: string = DEFAULT_ORG_ID) {
+  const targetId = orgId || DEFAULT_ORG_ID;
   return tryPrisma(
     async () => {
       return await prisma.customer.findMany({
-        where: { organizationId: orgId, deletedAt: null },
+        where: { organizationId: targetId, deletedAt: null },
         orderBy: { createdAt: "desc" },
       });
     },
-    () => fallbackStore.customers
+    () => fallbackStore.customers.filter((c) => !targetId || c.organizationId === targetId)
   );
 }
 
@@ -523,6 +559,7 @@ export async function createCustomer(orgId: string = DEFAULT_ORG_ID, data: Custo
         createdAt: new Date().toISOString(),
       };
       fallbackStore.customers.unshift(newCustomer);
+      saveLocalStore();
       return newCustomer;
     }
   );
@@ -542,10 +579,11 @@ export async function getServices(orgId: string = DEFAULT_ORG_ID) {
 
 // 5. Presupuestos (Quotes)
 export async function getQuotes(orgId: string = DEFAULT_ORG_ID) {
+  const targetId = orgId || DEFAULT_ORG_ID;
   return tryPrisma(
     async () => {
       return await prisma.quote.findMany({
-        where: { organizationId: orgId, deletedAt: null },
+        where: { organizationId: targetId, deletedAt: null },
         include: {
           customer: true,
           items: true,
@@ -554,7 +592,10 @@ export async function getQuotes(orgId: string = DEFAULT_ORG_ID) {
       });
     },
     () => {
-      return fallbackStore.quotes.map((q) => ({
+      const filtered = targetId
+        ? fallbackStore.quotes.filter((q) => q.organizationId === targetId)
+        : fallbackStore.quotes;
+      return filtered.map((q) => ({
         ...q,
         customer: fallbackStore.customers.find((c) => c.id === q.customerId) || {
           id: q.customerId,
@@ -580,6 +621,14 @@ export async function getQuoteByPublicToken(token: string) {
           customer: true,
           organization: true,
           items: true,
+          job: {
+            include: {
+              payments: {
+                where: { status: "APPROVED" },
+                orderBy: { createdAt: "desc" },
+              },
+            },
+          },
         },
       });
       return quote;
@@ -588,6 +637,11 @@ export async function getQuoteByPublicToken(token: string) {
       const q = fallbackStore.quotes.find((item) => item.publicToken === token);
       if (!q) return null;
       const customer = fallbackStore.customers.find((c) => c.id === q.customerId);
+      const job = fallbackStore.jobs.find((j) => j.quoteId === q.id);
+      const payments = job
+        ? fallbackStore.payments.filter((p) => p.jobId === job.id && p.status === "APPROVED")
+        : [];
+
       return {
         ...q,
         customer: customer || {
@@ -598,22 +652,28 @@ export async function getQuoteByPublicToken(token: string) {
           neighborhood: "Córdoba",
         },
         organization: fallbackStore.org,
+        job: job ? { ...job, payments } : null,
         createdAt: new Date(q.createdAt),
         updatedAt: new Date(q.createdAt),
-        expiresAt: new Date(Date.now() + 15 * 86400000),
+        expiresAt: new Date(new Date(q.createdAt).getTime() + (q.validityDays || 15) * 86400000),
       };
     }
   );
 }
 
 export async function createQuote(orgId: string = DEFAULT_ORG_ID, input: QuoteCreateInput) {
-  const totalAmount = input.items.reduce(
+  const netAmount = input.items.reduce(
     (acc, curr) => acc + curr.quantity * curr.unitPrice,
     0
   );
+  const taxRate = input.taxRate || 0;
+  const taxAmount = Math.round((netAmount * taxRate) / 100);
+  const totalAmount = netAmount + taxAmount;
+
   const publicToken = randomUUID();
-  const quoteNumber = `EC-2026-${String(Math.floor(Math.random() * 900) + 100)}`;
-  const validityDays = input.validityDays || 10;
+  const year = new Date().getFullYear();
+  const quoteNumber = `EC-${year}-${String(Math.floor(Math.random() * 900) + 100)}`;
+  const validityDays = input.validityDays || 15;
 
   return tryPrisma(
     async () => {
@@ -643,6 +703,7 @@ export async function createQuote(orgId: string = DEFAULT_ORG_ID, input: QuoteCr
         include: {
           items: true,
           customer: true,
+          organization: true,
         },
       });
     },
@@ -671,9 +732,11 @@ export async function createQuote(orgId: string = DEFAULT_ORG_ID, input: QuoteCr
         })),
       };
       fallbackStore.quotes.unshift(newQuote);
+      saveLocalStore();
       return {
         ...newQuote,
         customer: fallbackStore.customers.find((c) => c.id === input.customerId),
+        organization: fallbackStore.org,
       };
     }
   );
@@ -692,18 +755,21 @@ export async function updateQuoteStatus(
     },
     () => {
       const q = fallbackStore.quotes.find((item) => item.id === quoteId);
-      if (q) q.status = status;
+      if (q) {
+        q.status = status;
+        saveLocalStore();
+      }
       return q;
     }
   );
 }
 
-// 6. Órdenes de Trabajo (Jobs)
 export async function getJobs(orgId: string = DEFAULT_ORG_ID) {
+  const targetId = orgId || DEFAULT_ORG_ID;
   return tryPrisma(
     async () => {
       return await prisma.job.findMany({
-        where: { organizationId: orgId, deletedAt: null },
+        where: { organizationId: targetId, deletedAt: null },
         include: {
           customer: true,
           payments: {
@@ -714,7 +780,10 @@ export async function getJobs(orgId: string = DEFAULT_ORG_ID) {
       });
     },
     () => {
-      return fallbackStore.jobs.map((j) => ({
+      const filtered = targetId
+        ? fallbackStore.jobs.filter((j) => j.organizationId === targetId)
+        : fallbackStore.jobs;
+      return filtered.map((j) => ({
         ...j,
         customer: fallbackStore.customers.find((c) => c.id === j.customerId) || {
           id: j.customerId,
@@ -877,6 +946,7 @@ export async function recordPayment(
         job.status = "COMPLETED";
         job.completedAt = new Date().toISOString();
       }
+      saveLocalStore();
 
       return { payment, job };
     }
@@ -941,7 +1011,261 @@ export async function convertQuoteToJob(quoteId: string) {
 
       fallbackStore.jobs.unshift(newJob);
       quote.status = "CONVERTED";
+      saveLocalStore();
       return newJob;
     }
   );
+}
+
+/**
+ * Gestión de Usuarios (Exclusivo Superadmin)
+ */
+export async function getUsers() {
+  return tryPrisma(
+    async () => {
+      const users = await prisma.user.findMany({
+        orderBy: { createdAt: "desc" },
+        include: { organization: true },
+      });
+      return users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone,
+        organizationId: u.organizationId,
+        organizationName: u.organization.name,
+        createdAt: u.createdAt.toISOString(),
+      }));
+    },
+    () => {
+      return fallbackStore.users.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone,
+        organizationId: u.organizationId,
+        organizationName: fallbackStore.org.name,
+        createdAt: u.createdAt,
+      }));
+    }
+  );
+}
+
+export async function createUser(data: {
+  name: string;
+  email: string;
+  password: string;
+  role?: "SUPERADMIN" | "OWNER" | "MEMBER";
+  phone?: string;
+  organizationId?: string;
+}) {
+  const normalizedEmail = data.email.toLowerCase().trim();
+  const hashedPassword = bcrypt.hashSync(data.password, 10);
+  const targetOrgId = data.organizationId || DEFAULT_ORG_ID;
+
+  return tryPrisma(
+    async () => {
+      const existing = await prisma.user.findUnique({
+        where: { email: normalizedEmail },
+      });
+      if (existing) {
+        throw new Error("Ya existe un usuario registrado con este correo electrónico.");
+      }
+
+      let assignedOrgId = targetOrgId;
+      if (data.role === "OWNER") {
+        const newOrg = await prisma.organization.create({
+          data: {
+            name: `${data.name.trim()} - Instalaciones`,
+            slug: `${data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}`,
+            legalName: data.name.trim(),
+            ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
+            ersepLicense: "Habilitación ERSeP Ley 10.281",
+            cuit: "20-00000000-0",
+            vatCondition: "Monotributo",
+            taxCondition: "Monotributo - Servicios Técnicos",
+            legalAddress: "Córdoba",
+            address: "Córdoba",
+            phone: data.phone?.trim() || "+54 9 351 000-0000",
+            whatsappNumber: data.phone?.trim() || "+5493510000000",
+            bankAlias: "",
+            cbuCvu: "",
+            aliasCbu: "",
+            currency: "ARS",
+          },
+        });
+        assignedOrgId = newOrg.id;
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          name: data.name.trim(),
+          email: normalizedEmail,
+          password: hashedPassword,
+          role: data.role || "MEMBER",
+          phone: data.phone?.trim(),
+          organizationId: assignedOrgId,
+        },
+        include: { organization: true },
+      });
+
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        organizationId: user.organizationId,
+        organizationName: user.organization.name,
+        createdAt: user.createdAt.toISOString(),
+      };
+    },
+    () => {
+      const existing = fallbackStore.users.find(
+        (u) => u.email.toLowerCase() === normalizedEmail
+      );
+      if (existing) {
+        throw new Error("Ya existe un usuario registrado con este correo electrónico.");
+      }
+
+      let assignedOrgId = targetOrgId;
+      if (data.role === "OWNER") {
+        assignedOrgId = `org_${randomUUID().slice(0, 8)}`;
+        fallbackStore.orgs[assignedOrgId] = {
+          id: assignedOrgId,
+          name: `${data.name.trim()} - Instalaciones`,
+          slug: data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          legalName: data.name.trim(),
+          ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
+          ersepLicense: "Habilitación ERSeP Ley 10.281",
+          cuit: "20-00000000-0",
+          vatCondition: "Monotributo",
+          taxCondition: "Monotributo - Servicios Técnicos",
+          legalAddress: "Córdoba",
+          address: "Córdoba",
+          phone: data.phone?.trim() || "+54 9 351 000-0000",
+          whatsappNumber: data.phone?.trim() || "+5493510000000",
+          bankAlias: "",
+          cbuCvu: "",
+          aliasCbu: "",
+          mpAccessToken: "",
+          mpPublicKey: "",
+          logoUrl: "/logo-icon.png",
+          currency: "ARS",
+          email: normalizedEmail,
+        };
+      }
+
+      const newUser: InMemUser = {
+        id: `user_${randomUUID().slice(0, 8)}`,
+        organizationId: assignedOrgId,
+        name: data.name.trim(),
+        email: normalizedEmail,
+        role: data.role || "MEMBER",
+        phone: data.phone?.trim() || "+54 9 351 000-0000",
+        password: hashedPassword,
+        createdAt: new Date().toISOString(),
+      };
+
+      fallbackStore.users.unshift(newUser);
+      saveLocalStore();
+      const org = fallbackStore.orgs[assignedOrgId] || fallbackStore.org;
+      return {
+        id: newUser.id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        phone: newUser.phone,
+        organizationId: newUser.organizationId,
+        organizationName: org.name,
+        createdAt: newUser.createdAt,
+      };
+    }
+  );
+}
+
+export function saveBiometricCredential(cred: {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  credentialId: string;
+  publicKey?: string;
+  deviceName?: string;
+}) {
+  const existingIdx = fallbackStore.biometricCredentials.findIndex(
+    (c) => c.credentialId === cred.credentialId || c.userId === cred.userId
+  );
+  const newCred: BiometricCredential = {
+    id: `bio_${randomUUID().slice(0, 8)}`,
+    userId: cred.userId,
+    userEmail: cred.userEmail,
+    userName: cred.userName,
+    credentialId: cred.credentialId,
+    publicKey: cred.publicKey,
+    deviceName: cred.deviceName || "Dispositivo Móvil",
+    createdAt: new Date().toISOString(),
+  };
+
+  if (existingIdx !== -1) {
+    fallbackStore.biometricCredentials[existingIdx] = newCred;
+  } else {
+    fallbackStore.biometricCredentials.push(newCred);
+  }
+  saveLocalStore();
+  return newCred;
+}
+
+export function getBiometricCredential(credentialIdOrEmail: string) {
+  loadLocalStore();
+  const norm = credentialIdOrEmail.toLowerCase().trim();
+  return fallbackStore.biometricCredentials.find(
+    (c) => c.credentialId === credentialIdOrEmail || c.userEmail.toLowerCase() === norm
+  );
+}
+
+export function findUserById(userId: string) {
+  loadLocalStore();
+  if (userId === "user_superadmin_root") {
+    return {
+      id: "user_superadmin_root",
+      name: "Super Administrador",
+      email: "admin@electrocba.com.ar",
+      role: "SUPERADMIN" as const,
+      organizationId: DEFAULT_ORG_ID,
+    };
+  }
+  return fallbackStore.users.find((u) => u.id === userId);
+}
+
+export async function deleteUser(userId: string) {
+  if (userId === "user_superadmin_root") {
+    throw new Error("No es posible eliminar la cuenta principal de Superadministrador.");
+  }
+
+  return tryPrisma(
+    async () => {
+      await prisma.user.delete({
+        where: { id: userId },
+      });
+      return { success: true };
+    },
+    () => {
+      loadLocalStore();
+      const index = fallbackStore.users.findIndex((u) => u.id === userId);
+      if (index === -1) {
+        throw new Error("Usuario no encontrado.");
+      }
+      fallbackStore.users.splice(index, 1);
+      saveLocalStore();
+      return { success: true };
+    }
+  );
+}
+
+export function findFallbackUserByEmail(email: string) {
+  loadLocalStore();
+  const normalized = email.toLowerCase().trim();
+  return fallbackStore.users.find((u) => u.email.toLowerCase() === normalized);
 }

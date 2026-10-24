@@ -56,6 +56,19 @@ export default async function PublicQuotePage({ params }: Props) {
     return { prefix: "", title: text };
   };
 
+  const isPaid =
+    quote.status === "APPROVED" ||
+    quote.status === "CONVERTED" ||
+    Boolean(quote.job?.payments && quote.job.payments.some((p: any) => p.status === "APPROVED"));
+
+  const orgName = quote.organization?.name || "ElectroCba";
+  const orgLegalName = quote.organization?.legalName || orgName;
+  const ersepLicense = quote.organization?.ersepLicenseNumber || quote.organization?.ersepLicense || "Matrícula Habilitada ERSeP";
+  const cuit = quote.organization?.cuit || "No informado";
+  const vatCondition = quote.organization?.vatCondition || quote.organization?.taxCondition || "Monotributo";
+  const legalAddress = quote.organization?.legalAddress || quote.organization?.address || "Córdoba Capital";
+  const electricianPhone = quote.organization?.whatsappNumber || quote.organization?.phone || "+5493510000000";
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-6 sm:py-10 px-3 sm:px-6 font-sans">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
@@ -68,10 +81,10 @@ export default async function PublicQuotePage({ params }: Props) {
             {/* LADO IZQUIERDO: INSTALADOR MATRICULADO ERSEP */}
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
                   <Image
-                    src="/logo-icon.png"
-                    alt="ElectroCba"
+                    src={quote.organization?.logoUrl || "/logo-icon.png"}
+                    alt={orgName}
                     width={44}
                     height={44}
                     className="w-full h-full object-contain"
@@ -79,10 +92,10 @@ export default async function PublicQuotePage({ params }: Props) {
                 </div>
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                    {quote.organization?.name || "ElectroCba"}
+                    {orgName}
                   </h1>
                   <p className="text-[11px] uppercase tracking-widest text-[#C5A059] font-semibold">
-                    Ingeniería & Servicios Técnicos
+                    {orgLegalName !== orgName ? `${orgLegalName} • ` : ""}Servicios Eléctricos Habilitados
                   </p>
                 </div>
               </div>
@@ -91,19 +104,19 @@ export default async function PublicQuotePage({ params }: Props) {
               <div className="inline-flex items-center gap-2 bg-[#1E293B] border border-[#C5A059]/50 text-[#C5A059] px-3 py-1.5 rounded-lg text-xs font-semibold">
                 <ShieldCheck className="w-4 h-4 text-[#C5A059]" />
                 <span className="tabular-nums">
-                  {quote.organization?.ersepLicense || "Matrícula ERSeP Cat. III - N° 14892"}
+                  {ersepLicense}
                 </span>
               </div>
 
               {/* METADATOS TÉCNICOS Y FISCALES */}
               <div className="text-[11px] text-slate-400 space-y-0.5 pt-1">
                 <p>
-                  CUIT: <span className="text-slate-200 tabular-nums font-medium">{quote.organization?.cuit || "20-33445566-9"}</span> • Condición IVA:{" "}
-                  <span className="text-slate-200 font-medium">{quote.organization?.taxCondition || "Monotributo"}</span>
+                  CUIT: <span className="text-slate-200 tabular-nums font-medium">{cuit}</span> • Condición IVA:{" "}
+                  <span className="text-slate-200 font-medium">{vatCondition}</span>
                 </p>
                 <p className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                  <span>{quote.organization?.address || "Av. Colón 1450, B° Alberdi, Córdoba Capital"}</span>
+                  <span>{legalAddress}</span>
                 </p>
               </div>
             </div>
@@ -373,8 +386,14 @@ export default async function PublicQuotePage({ params }: Props) {
             validityDays={quote.validityDays || 15}
             customerName={quote.customer?.name || "Cliente"}
             customerPhone={quote.customer?.phone || ""}
-            electricianPhone="+5493515123456"
+            electricianPhone={electricianPhone}
             status={quote.status}
+            isPaid={isPaid}
+            organizationName={orgName}
+            electricianLegalName={orgLegalName}
+            ersepLicense={ersepLicense}
+            bankAlias={quote.organization?.bankAlias || quote.organization?.aliasCbu}
+            cbuCvu={quote.organization?.cbuCvu}
           />
         </div>
       </div>
