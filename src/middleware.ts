@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { updateSession } from "@/utils/supabase/middleware";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
@@ -12,6 +13,9 @@ const PROTECTED_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // Actualizar sesión de Supabase si aplica
+  const supabaseRes = updateSession(req);
 
   // Rutas públicas explícitas
   if (
@@ -36,7 +40,7 @@ export async function middleware(req: NextRequest) {
         }
       }
     }
-    return NextResponse.next();
+    return supabaseRes;
   }
 
   // Verificar si la ruta requiere autenticación
@@ -56,7 +60,7 @@ export async function middleware(req: NextRequest) {
     try {
       // Validar token criptográficamente
       await jwtVerify(token, JWT_SECRET);
-      return NextResponse.next();
+      return supabaseRes;
     } catch {
       // Token expirado o alterado
       const loginUrl = new URL("/login", req.url);
@@ -67,17 +71,11 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return supabaseRes;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
