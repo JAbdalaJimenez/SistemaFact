@@ -73,11 +73,27 @@ a, button, [role="button"] {
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Aceleración por hardware para transiciones fluidas */
 .fast-transition {
   transition: transform 75ms ease, opacity 75ms ease;
   will-change: transform;
+}
+
+/* Soporte para iPhone con Dynamic Island / Home Indicator (PWA Standalone) */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+}
+
+/* Evitar el rebote elástico en móviles para que se sienta como app nativa */
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
 }
 
