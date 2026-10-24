@@ -1,7 +1,6 @@
 import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
-import net from "net";
 
 // Fallback Store en memoria para asegurar que la app funcione siempre
 interface InMemQuoteItem {
@@ -306,66 +305,20 @@ const fallbackStore = {
   ] as InMemPayment[],
 };
 
-let isDbReachable: boolean | null = null;
-let lastProbeTime = 0;
-const PROBE_INTERVAL_MS = 30000; // Sondea como máximo una vez cada 30s
+let isDbReachable = true;
 
 export async function isDatabaseOnline(): Promise<boolean> {
-  const now = Date.now();
-  if (isDbReachable !== null && now - lastProbeTime < PROBE_INTERVAL_MS) {
-    return isDbReachable;
-  }
-
-  const dbUrl = process.env.DATABASE_URL || "";
-  let host = "127.0.0.1";
-  let port = 5432;
-
-  try {
-    const match = dbUrl.match(/@([^:/]+)(?::(\d+))?/);
-    if (match) {
-      host = match[1] === "localhost" ? "127.0.0.1" : match[1];
-      if (match[2]) port = parseInt(match[2], 10);
-    }
-  } catch {
-    // ignorar
-  }
-
-  return new Promise<boolean>((resolve) => {
-    const socket = new net.Socket();
-    let settled = false;
-
-    const finalize = (status: boolean) => {
-      if (!settled) {
-        settled = true;
-        isDbReachable = status;
-        lastProbeTime = Date.now();
-        socket.destroy();
-        resolve(status);
-      }
-    };
-
-    socket.setTimeout(80);
-    socket.once("connect", () => finalize(true));
-    socket.once("timeout", () => finalize(false));
-    socket.once("error", () => finalize(false));
-
-    socket.connect(port, host);
-  });
+  return isDbReachable;
 }
 
-// Intenta conectar a PostgreSQL mediante Prisma, con fallback instantáneo (0ms) si no hay BD activa
+// Conexión ultrarrápida directa a PostgreSQL con fallback instantáneo si fallara
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promise<T> {
-  const online = await isDatabaseOnline();
-  if (!online) {
-    return await fallbackFn();
-  }
-
   try {
-    return await fn();
+    const result = await fn();
+    isDbReachable = true;
+    return result;
   } catch (err: unknown) {
-    isDbReachable = false;
-    lastProbeTime = Date.now();
     const errorMsg = String(err);
     if (
       errorMsg.includes("Can't reach database server") ||
@@ -376,25 +329,38 @@ async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promis
       errorMsg.includes("InitializationError") ||
       errorMsg.includes("PrismaClientInitializationError")
     ) {
-      // Fallback a memoria inmediato
+      isDbReachable = false;
       return await fallbackFn();
     }
     throw err;
   }
 }
 
-// 1. Obtener Organización
+// 1. Obtener Organización (con caché en memoria instantánea de 60s)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let cachedOrg: any = null;
+let lastOrgTime = 0;
+
 export async function getOrganization(orgId: string = DEFAULT_ORG_ID) {
-  return tryPrisma(
+  const now = Date.now();
+  if (cachedOrg && now - lastOrgTime < 60000) {
+    return cachedOrg;
+  }
+
+  const org = await tryPrisma(
     async () => {
-      let org = await prisma.organization.findUnique({ where: { id: orgId } });
-      if (!org) {
-        org = await prisma.organization.findFirst();
+      let found = await prisma.organization.findUnique({ where: { id: orgId } });
+      if (!found) {
+        found = await prisma.organization.findFirst();
       }
-      return org || (fallbackStore.org as any);
+      return found || (fallbackStore.org as any);
     },
     () => fallbackStore.org as any
   );
+
+  cachedOrg = org;
+  lastOrgTime = Date.now();
+  return org;
 }
 
 // 2. Métricas del Dashboard Operativo

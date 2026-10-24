@@ -17,6 +17,7 @@ import {
   Loader2,
   ChevronDown,
   Sparkles,
+  X,
 } from "lucide-react";
 import { formatCurrencyARS, formatPhoneForWhatsApp, formatDate } from "@/lib/types";
 
@@ -75,22 +76,22 @@ export function JobDetailsClient({
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Actualizar estado del trabajo
+  // Actualizar estado del trabajo con actualización optimista instantánea (0ms)
   const handleStatusChange = async (newStatus: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED") => {
-    setStatusLoading(true);
+    const previousStatus = status;
+    setStatus(newStatus); // Actualización inmediata en UI
     try {
       const res = await fetch(`/api/jobs/${job.id}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) {
-        setStatus(newStatus);
+      if (!res.ok) {
+        setStatus(previousStatus); // Revertir solo si falló
       }
     } catch (e) {
       console.error(e);
-    } finally {
-      setStatusLoading(false);
+      setStatus(previousStatus);
     }
   };
 
@@ -102,7 +103,32 @@ export function JobDetailsClient({
       return;
     }
 
-    setManualLoading(true);
+    const prevBalance = balanceDue;
+    const prevPayments = payments;
+    const prevStatus = status;
+
+    // Actualización optimista inmediata en 0ms
+    const newBalance = Math.max(0, balanceDue - manualAmount);
+    setBalanceDue(newBalance);
+    if (newBalance === 0) {
+      setStatus("COMPLETED");
+    }
+    const tempId = `pay_${Date.now()}`;
+    const paymentNote = manualNotes || (manualMethod === "CASH" ? "Pago recibido en efectivo" : "Transferencia bancaria directa");
+    setPayments((prev) => [
+      {
+        id: tempId,
+        amount: manualAmount,
+        paymentMethod: manualMethod,
+        status: "APPROVED",
+        notes: paymentNote,
+        createdAt: new Date().toISOString(),
+      },
+      ...prev,
+    ]);
+    setShowManualModal(false);
+    setManualNotes("");
+
     try {
       const res = await fetch(`/api/jobs/${job.id}/payment`, {
         method: "POST",
@@ -110,7 +136,7 @@ export function JobDetailsClient({
         body: JSON.stringify({
           amount: manualAmount,
           paymentMethod: manualMethod,
-          notes: manualNotes || (manualMethod === "CASH" ? "Pago recibido en efectivo" : "Transferencia bancaria directa"),
+          notes: paymentNote,
         }),
       });
 
@@ -118,32 +144,18 @@ export function JobDetailsClient({
       if (!res.ok) {
         throw new Error(data.error || "Error al registrar pago");
       }
-
-      // Actualizar estado local
-      const newBalance = Math.max(0, balanceDue - manualAmount);
-      setBalanceDue(newBalance);
-      if (newBalance === 0) {
-        setStatus("COMPLETED");
+      // Reemplazar id temporal por el de la BD
+      if (data.payment?.id) {
+        setPayments((prev) =>
+          prev.map((p) => (p.id === tempId ? { ...p, id: data.payment.id } : p))
+        );
       }
-
-      setPayments((prev) => [
-        {
-          id: data.payment?.id || `pay_${Date.now()}`,
-          amount: manualAmount,
-          paymentMethod: manualMethod,
-          status: "APPROVED",
-          notes: manualNotes,
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
-
-      setShowManualModal(false);
-      setManualNotes("");
     } catch (err: unknown) {
+      // Revertir en caso de error
+      setBalanceDue(prevBalance);
+      setPayments(prevPayments);
+      setStatus(prevStatus);
       alert(String(err));
-    } finally {
-      setManualLoading(false);
     }
   };
 
@@ -369,9 +381,10 @@ export function JobDetailsClient({
               </span>
               <button
                 onClick={() => setMpLinkData(null)}
-                className="text-xs text-slate-400 hover:text-slate-600"
+                className="text-xs text-[#475569] hover:text-[#0B132B] flex items-center gap-1 transition-colors cursor-pointer"
               >
-                ✕ Cerrar
+                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <span>Cerrar</span>
               </button>
             </div>
 
@@ -380,14 +393,14 @@ export function JobDetailsClient({
                 type="text"
                 readOnly
                 value={mpLinkData.shortUrl}
-                className="w-full text-xs font-mono bg-white px-3 py-2 rounded-lg border border-slate-200 text-slate-700"
+                className="w-full text-xs font-mono bg-white px-3 py-2 rounded-lg border border-[#E2E8F0] text-[#0B132B]"
               />
               <button
                 onClick={handleCopyLink}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-3.5 py-2 rounded-lg shrink-0 flex items-center gap-1 cursor-pointer transition-colors"
+                className="bg-[#0B132B] hover:bg-[#1C2541] text-white font-medium text-xs px-3.5 py-2 rounded-lg shrink-0 flex items-center gap-1 cursor-pointer transition-colors"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{copied ? "¡Copiado!" : "Copiar"}</span>
+                <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <span>{copied ? "Copiado" : "Copiar"}</span>
               </button>
             </div>
 

@@ -173,13 +173,13 @@ export function generateWhatsAppLink({
 
   if (type === "quote" && publicToken) {
     const quoteUrl = `${baseUrl}/p/${publicToken}`;
-    message = `¡Hola ${customerName}! Te saluda Marcos de *ElectroCba* (Matrícula ERSeP N° 14892).\n\nTe comparto el detalle formal del presupuesto para tu trabajo: *${title}* por un total de *${formattedAmount}*.\n\nPodes revisar el desglose y aprobarlo directamente desde este enlace:\n🔗 ${quoteUrl}\n\nCualquier consulta estoy a tu disposición. ¡Muchas gracias!`;
+    message = `Estimado/a ${customerName}:\n\nLe saluda Marcos Romero de ElectroCba (Matrícula ERSeP N° 14892).\n\nLe comparto el detalle formal del presupuesto para su obra: *${title}* por un total de *${formattedAmount}*.\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo en el siguiente enlace oficial:\n${quoteUrl}\n\nQuedo a su disposición ante cualquier requerimiento normativo.`;
   } else if (type === "quote_deposit" && paymentUrl) {
-    message = `¡Hola ${customerName}! Marcos de *ElectroCba*.\n\nPara confirmar la fecha de inicio del trabajo (*${title}*), podés abonar la seña del 50% (*${formattedAmount}*) de forma segura por Mercado Pago:\n🔗 ${paymentUrl}\n\nUna vez acreditado se agenda automáticamente en nuestro calendario de trabajo.`;
+    message = `Estimado/a ${customerName}:\n\nMarcos Romero de ElectroCba.\n\nPara confirmar la fecha de inicio de obra (*${title}*), puede abonar la seña formal del 50% (*${formattedAmount}*) de forma segura por Mercado Pago:\n${paymentUrl}\n\nUna vez acreditada se confirmará el ingreso en el cronograma técnico de obra.`;
   } else if (paymentUrl) {
-    message = `¡Hola ${customerName}! Marcos de *ElectroCba*.\n\nTe comparto el enlace para cancelar el saldo restante de *${formattedAmount}* correspondiente al trabajo de *${title}*:\n🔗 ${paymentUrl}\n\nPodes abonar con tarjeta de débito, crédito o dinero en cuenta de Mercado Pago. ¡Muchas gracias por confiar en nosotros!`;
+    message = `Estimado/a ${customerName}:\n\nMarcos Romero de ElectroCba.\n\nLe remito el enlace oficial para cancelar el saldo contractual restante de *${formattedAmount}* correspondiente a la obra: *${title}*:\n${paymentUrl}\n\nPuede abonar mediante transferencia, tarjeta de débito/crédito o dinero en cuenta.`;
   } else {
-    message = `¡Hola ${customerName}! Marcos de *ElectroCba*. Me contacto por los servicios eléctricos solicitados. ¿En qué horario te queda cómodo coordinar la visita?`;
+    message = `Estimado/a ${customerName}:\n\nLe saluda Marcos Romero de ElectroCba. Me contacto con referencia a los servicios técnicos solicitados. ¿En qué franja horaria le resulta conveniente coordinar el relevamiento técnico en obra?`;
   }
 
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;

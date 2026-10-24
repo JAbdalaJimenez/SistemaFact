@@ -30,6 +30,17 @@ export function AppNavigation() {
   const [user, setUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
+    // Si ya tenemos el usuario en memoria, no re-consultar en cada cambio de página
+    if (user) return;
+
+    try {
+      const saved = sessionStorage.getItem("electrocba_user");
+      if (saved) {
+        setUser(JSON.parse(saved));
+        return;
+      }
+    } catch {}
+
     fetch("/api/auth/me")
       .then((res) => {
         if (res.ok) return res.json();
@@ -38,12 +49,18 @@ export function AppNavigation() {
       .then((data) => {
         if (data?.authenticated && data?.user) {
           setUser(data.user);
+          try {
+            sessionStorage.setItem("electrocba_user", JSON.stringify(data.user));
+          } catch {}
         }
       })
       .catch(() => {});
-  }, [pathname]);
+  }, [user]);
 
   const handleLogout = async () => {
+    try {
+      sessionStorage.removeItem("electrocba_user");
+    } catch {}
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     router.push("/login");
@@ -100,21 +117,21 @@ export function AppNavigation() {
           <div className="flex items-center space-x-3">
             <div className="hidden sm:block text-right">
               <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
-                <span className="text-xs font-semibold text-[#0F172A]" suppressHydrationWarning>
+                <span className="text-xs font-semibold text-[#0B132B]" suppressHydrationWarning>
                   {user?.name || "Marcos Romero"}
                 </span>
                 <span
                   suppressHydrationWarning
-                  className={`text-[9px] font-bold tracking-widest uppercase px-1.5 py-0.5 rounded border ${
+                  className={`text-[9px] font-medium tracking-wider uppercase px-1.5 py-0.5 rounded border ${
                     user?.role === "OWNER"
-                      ? "bg-[#0F172A] text-white border-[#1E293B]"
+                      ? "bg-[#0B132B] text-white border-[#1C2541]"
                       : "bg-[#F1F5F9] text-[#475569] border-[#E2E8F0]"
                   }`}
                 >
                   {user?.role || "OWNER"}
                 </span>
               </div>
-              <p className="text-[10px] uppercase tracking-wider text-[#64748B] font-medium">
+              <p className="text-[10px] uppercase tracking-wider text-[#475569] font-medium">
                 Instalador Habilitado
               </p>
             </div>
@@ -122,16 +139,16 @@ export function AppNavigation() {
             <button
               onClick={handleLogout}
               title="Cerrar Sesión"
-              className="w-9 h-9 rounded-xl bg-[#F8FAFC] hover:bg-red-50 text-[#64748B] hover:text-red-600 border border-[#E2E8F0] hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-red-50 text-[#475569] hover:text-red-700 border border-[#E2E8F0] hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4" strokeWidth={1.5} />
             </button>
           </div>
         </div>
       </header>
 
       {/* BARRA DE NAVEGACIÓN INFERIOR (Mobile-First 390px) */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] pb-safe shadow-lg">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E2E8F0] pb-safe shadow-sm">
         <div className="grid grid-cols-5 h-16 items-center px-1">
           {navLinks.map((item) => {
             const Icon = item.icon;
@@ -142,12 +159,13 @@ export function AppNavigation() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   className="flex flex-col items-center justify-center -mt-5"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[#0F172A] hover:bg-[#1E293B] text-white flex items-center justify-center shadow-lg border border-[#C5A059]/40 ring-4 ring-[#F8FAFC] transition-transform active:scale-95">
-                    <PlusCircle className="w-6 h-6 text-[#C5A059]" />
+                  <div className="w-12 h-12 rounded-xl bg-[#0B132B] hover:bg-[#1C2541] text-white flex items-center justify-center shadow-sm border border-[#C5A059]/40 ring-4 ring-[#F8FAFC] transition-transform active:scale-95">
+                    <PlusCircle className="w-6 h-6 text-[#C5A059]" strokeWidth={1.5} />
                   </div>
-                  <span className="text-[9px] font-bold uppercase tracking-widest text-[#0F172A] mt-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-[#0B132B] mt-1">
                     Cotizar
                   </span>
                 </Link>
@@ -158,16 +176,16 @@ export function AppNavigation() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={`flex flex-col items-center justify-center py-1 transition-colors ${
                   isActive
-                    ? "text-[#0F172A] font-bold"
-                    : "text-[#64748B] hover:text-[#0F172A]"
+                    ? "text-[#0B132B] font-semibold"
+                    : "text-[#475569] hover:text-[#0B132B]"
                 }`}
               >
                 <Icon
-                  className={`w-5 h-5 ${
-                    isActive ? "stroke-[2.5] text-[#0F172A]" : "stroke-[1.75]"
-                  }`}
+                  className="w-5 h-5"
+                  strokeWidth={isActive ? 2 : 1.5}
                 />
                 <span className="text-[10px] mt-1 font-medium">{item.label}</span>
                 {isActive && (
@@ -179,8 +197,8 @@ export function AppNavigation() {
         </div>
       </nav>
 
-      {/* MENÚ DE ESCRITORIO (Subheader horizontal - Architectural Executive) */}
-      <div className="hidden sm:block bg-[#0F172A] text-white border-b border-[#1E293B]">
+      {/* MENÚ DE ESCRITORIO (Subheader horizontal - Corporate Authority) */}
+      <div className="hidden sm:block bg-[#0B132B] text-white border-b border-[#1C2541]">
         <div className="max-w-5xl mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center space-x-1">
             {navLinks.map((item) => {
@@ -190,16 +208,18 @@ export function AppNavigation() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   className={`flex items-center space-x-2 px-4 py-3 text-xs font-medium tracking-wide transition-colors relative ${
                     isActive
-                      ? "text-white bg-[#1E293B]"
-                      : "text-slate-400 hover:text-white hover:bg-[#1E293B]/60"
+                      ? "text-white bg-[#1C2541]"
+                      : "text-slate-300 hover:text-white hover:bg-[#1C2541]/70"
                   }`}
                 >
                   <Icon
                     className={`w-4 h-4 ${
                       isActive ? "text-[#C5A059]" : "text-slate-400"
                     }`}
+                    strokeWidth={1.5}
                   />
                   <span>{item.label}</span>
                   {isActive && (
@@ -212,9 +232,10 @@ export function AppNavigation() {
 
           <Link
             href="/quotes/new"
-            className="bg-[#1E293B] hover:bg-[#334155] text-white border border-[#C5A059]/40 text-xs font-semibold py-1.5 px-3.5 rounded-lg flex items-center space-x-1.5 shadow-sm transition-all"
+            prefetch={true}
+            className="bg-[#1C2541] hover:bg-[#2A3B5C] text-white border border-[#C5A059]/40 text-xs font-semibold py-1.5 px-3.5 rounded-lg flex items-center space-x-1.5 shadow-sm transition-all"
           >
-            <PlusCircle className="w-3.5 h-3.5 text-[#C5A059]" />
+            <PlusCircle className="w-3.5 h-3.5 text-[#C5A059]" strokeWidth={1.5} />
             <span>Emitir Presupuesto Formal</span>
           </Link>
         </div>

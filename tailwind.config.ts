@@ -22,9 +22,16 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        oxford: {
+          DEFAULT: "#0B132B", // Oxford Blue - Corporate Authority
+          hover: "#1C2541",
+          900: "#0B132B",
+          800: "#1C2541",
+          700: "#3A506B",
+        },
         obsidian: {
-          DEFAULT: "#0F172A", // Deep Obsidian - Superficies de poder
-          hover: "#1E293B",
+          DEFAULT: "#0B132B",
+          hover: "#1C2541",
           50: "#F8FAFC",
           100: "#F1F5F9",
           200: "#E2E8F0",
@@ -34,52 +41,32 @@ const config: Config = {
           600: "#475569",
           700: "#334155",
           800: "#1E293B",
-          900: "#0F172A",
-          950: "#020617",
-        },
-        slateDark: {
-          DEFAULT: "#1E293B", // Dark Slate - Bordes oscuros y texto alta jerarquía
-          hover: "#0F172A",
-        },
-        gold: {
-          DEFAULT: "#C5A059", // Champagne Warm Gold - Acento legal / sellos / importes
-          warm: "#9A6E24",
-          champagne: "#C5A059",
-          50: "#FCFAF6",
-          100: "#F7F3E9",
-          200: "#EFE3C9",
-          300: "#DFCAA0",
-          400: "#D1B273",
-          500: "#C5A059",
-          600: "#AF863E",
-          700: "#9A6E24",
-          800: "#795418",
-          900: "#573B0E",
+          900: "#0B132B",
         },
         primary: {
-          DEFAULT: "#0F172A", // Deep Obsidian
-          hover: "#1E293B",
+          DEFAULT: "#0B132B", // Oxford Blue
+          hover: "#1C2541",
           foreground: "#FFFFFF",
         },
         secondary: {
-          DEFAULT: "#1E293B", // Dark Slate
+          DEFAULT: "#475569", // Slate 600
           foreground: "#FFFFFF",
         },
         accent: {
-          DEFAULT: "#C5A059", // Champagne Warm Gold
+          DEFAULT: "#C5A059", // Champagne Legal Gold
           warm: "#9A6E24",
-          foreground: "#0F172A",
+          foreground: "#0B132B",
         },
         success: {
-          DEFAULT: "#15803D", // Verde Esmeralda apagado
+          DEFAULT: "#166534", // Desaturated Success Dark Green
           foreground: "#FFFFFF",
           50: "#F0FDF4",
           100: "#DCFCE7",
           600: "#16A34A",
-          700: "#15803D",
+          700: "#166534",
         },
         warning: {
-          DEFAULT: "#B45309", // Ámbar cálido
+          DEFAULT: "#B45309", // Desaturated Amber
           foreground: "#FFFFFF",
           50: "#FFFBEB",
           100: "#FEF3C7",
@@ -87,16 +74,16 @@ const config: Config = {
           700: "#B45309",
         },
         destructive: {
-          DEFAULT: "#DC2626",
+          DEFAULT: "#991B1B",
           foreground: "#FFFFFF",
         },
         muted: {
           DEFAULT: "#F1F5F9",
-          foreground: "#64748B",
+          foreground: "#475569",
         },
         card: {
           DEFAULT: "#FFFFFF",
-          foreground: "#0F172A",
+          foreground: "#0B132B",
         },
       },
       borderRadius: {
@@ -105,12 +92,12 @@ const config: Config = {
         sm: "calc(var(--radius) - 4px)",
       },
       fontFamily: {
-        sans: ["'Plus Jakarta Sans'", "Inter", "Aptos", "system-ui", "sans-serif"],
+        sans: ["'Inter'", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "sans-serif"],
         mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
       },
       letterSpacing: {
-        architectural: "0.12em",
-        widest: "0.15em",
+        architectural: "0.08em",
+        widest: "0.12em",
       },
     },
   },

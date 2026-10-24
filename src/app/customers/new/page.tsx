@@ -12,7 +12,6 @@ import {
   MapPin,
   MessageCircle,
   Loader2,
-  Sparkles,
 } from "lucide-react";
 import { customerSchema, CORDOBA_NEIGHBORHOODS, formatPhoneForWhatsApp } from "@/lib/types";
 
@@ -71,13 +70,12 @@ export default function NewCustomerPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Error al crear cliente");
+        throw new Error(data.error || "Error al crear comitente");
       }
 
       setSuccess(true);
-      setTimeout(() => {
-        router.push("/customers");
-      }, 1000);
+      router.push("/customers");
+      router.refresh();
     } catch (err: unknown) {
       alert(String(err));
       setLoading(false);
@@ -86,41 +84,45 @@ export default function NewCustomerPage() {
 
   const previewWaPhone = formatPhoneForWhatsApp(formData.phone);
   const previewWaUrl = `https://wa.me/${previewWaPhone}?text=${encodeURIComponent(
-    `¡Hola ${formData.name || "Cliente"}! Te saluda Marcos de ElectroCba. ¿Cómo estás?`
+    `Estimado/a ${formData.name || "Titular"}, le saluda Marcos Romero de ElectroCba.`
   )}`;
 
   return (
-    <div className="max-w-xl mx-auto space-y-6">
+    <div className="max-w-xl mx-auto space-y-6 font-sans">
       <div className="flex items-center space-x-3">
         <Link
           href="/customers"
-          className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 shadow-sm"
+          prefetch={true}
+          className="w-9 h-9 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center text-[#475569] hover:text-[#0B132B] shadow-sm transition-colors"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
         </Link>
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Registrar Nuevo Cliente
+          <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A6E24] block">
+            Padrón Oficial de Obras
+          </span>
+          <h1 className="text-xl sm:text-2xl font-semibold text-[#0B132B] tracking-tight">
+            Registrar Nuevo Comitente
           </h1>
-          <p className="text-xs text-slate-500">
-            Formulario con validación Zod y prefijo de Córdoba (+54 9 351)
+          <p className="text-xs text-[#475569] font-normal">
+            Formulario normativo de titularidad con prefijo de Córdoba (+54 9 351)
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-2xl p-6 border border-[#E2E8F0] shadow-sm">
         {success && (
-          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-3 text-emerald-800 text-sm font-semibold">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>¡Cliente guardado exitosamente! Redirigiendo al directorio...</span>
+          <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-3 text-[#166534] text-xs font-semibold">
+            <CheckCircle2 className="w-4 h-4 text-[#166534] shrink-0" strokeWidth={1.5} />
+            <span>Comitente registrado con éxito. Redirigiendo al directorio...</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Nombre Completo */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Nombre y Apellido *
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B] mb-1">
+              Nombre Completo o Razón Social *
             </label>
             <input
               type="text"
@@ -128,15 +130,15 @@ export default function NewCustomerPage() {
               placeholder="Ej: Sofía Martínez"
               value={formData.name}
               onChange={handleChange}
-              className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+              className={`w-full px-3.5 py-2.5 rounded-lg border text-sm font-normal text-[#0B132B] transition-all ${
                 errors.name
-                  ? "border-red-500 bg-red-50/30 focus:ring-red-200"
-                  : "border-slate-200 focus:border-[#1E40AF] focus:ring-2 focus:ring-blue-100"
+                  ? "border-red-500 bg-red-50/20"
+                  : "border-[#E2E8F0] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
               }`}
             />
             {errors.name && (
-              <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" /> {errors.name}
+              <p className="text-xs text-red-700 mt-1 flex items-center gap-1 font-normal">
+                <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.5} /> {errors.name}
               </p>
             )}
           </div>
@@ -144,58 +146,55 @@ export default function NewCustomerPage() {
           {/* Celular / WhatsApp */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                WhatsApp Celular (Argentina) *
+              <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B]">
+                Teléfono Celular / WhatsApp *
               </label>
               {formData.phone.length > 8 && (
                 <a
                   href={previewWaUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                  className="text-[11px] font-medium text-[#166534] hover:underline flex items-center gap-1"
                 >
-                  <MessageCircle className="w-3.5 h-3.5" /> Probar Chat
+                  <MessageCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span>Verificar Canal</span>
                 </a>
               )}
             </div>
             <div className="relative">
-              <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" strokeWidth={1.5} />
               <input
                 type="text"
                 name="phone"
                 placeholder="+54 9 351 688 7722"
                 value={formData.phone}
                 onChange={handleChange}
-                className={`w-full pl-10 pr-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+                className={`w-full pl-10 pr-3.5 py-2.5 rounded-lg border text-sm font-normal text-[#0B132B] tabular-nums transition-all ${
                   errors.phone
-                    ? "border-red-500 bg-red-50/30"
-                    : "border-slate-200 focus:border-[#1E40AF] focus:ring-2 focus:ring-blue-100"
+                    ? "border-red-500 bg-red-50/20"
+                    : "border-[#E2E8F0] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
                 }`}
               />
             </div>
-            {errors.phone ? (
-              <p className="text-xs text-red-600 mt-1 flex items-center gap-1 font-medium">
-                <AlertCircle className="w-3.5 h-3.5" /> {errors.phone}
-              </p>
-            ) : (
-              <p className="text-[11px] text-slate-500 mt-1">
-                Formato sugerido: +54 9 351 XXXXXXX (habilita botón de WhatsApp instantáneo)
+            {errors.phone && (
+              <p className="text-xs text-red-700 mt-1 flex items-center gap-1 font-normal">
+                <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.5} /> {errors.phone}
               </p>
             )}
           </div>
 
           {/* Barrio de Córdoba */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B] mb-1">
               Barrio de Córdoba *
             </label>
             <div className="relative">
-              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" strokeWidth={1.5} />
               <select
                 name="neighborhood"
                 value={formData.neighborhood}
                 onChange={handleChange}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 text-sm font-medium bg-white focus:border-[#1E40AF] focus:ring-2 focus:ring-blue-100"
+                className="w-full pl-10 pr-3.5 py-2.5 rounded-lg border border-[#E2E8F0] text-sm font-normal text-[#0B132B] bg-white focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
               >
                 {CORDOBA_NEIGHBORHOODS.map((barrio) => (
                   <option key={barrio} value={barrio}>
@@ -205,69 +204,67 @@ export default function NewCustomerPage() {
               </select>
             </div>
             {errors.neighborhood && (
-              <p className="text-xs text-red-600 mt-1 font-medium">{errors.neighborhood}</p>
+              <p className="text-xs text-red-700 mt-1 font-normal">{errors.neighborhood}</p>
             )}
           </div>
 
           {/* Dirección */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Dirección y Número *
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B] mb-1">
+              Dirección de Domicilio / Inmueble *
             </label>
             <input
               type="text"
               name="address"
-              placeholder="Ej: Av. Hipólito Yrigoyen 380, Piso 4 Dpto B"
+              placeholder="Ej: San Lorenzo 420, Dpto 7B"
               value={formData.address}
               onChange={handleChange}
-              className={`w-full px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
+              className={`w-full px-3.5 py-2.5 rounded-lg border text-sm font-normal text-[#0B132B] transition-all ${
                 errors.address
-                  ? "border-red-500 bg-red-50/30"
-                  : "border-slate-200 focus:border-[#1E40AF] focus:ring-2 focus:ring-blue-100"
+                  ? "border-red-500 bg-red-50/20"
+                  : "border-[#E2E8F0] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
               }`}
             />
             {errors.address && (
-              <p className="text-xs text-red-600 mt-1 font-medium">{errors.address}</p>
+              <p className="text-xs text-red-700 mt-1 font-normal">{errors.address}</p>
             )}
           </div>
 
-          {/* Notas del trabajo o cliente */}
+          {/* Notas */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
-              Notas del Trabajo / Historial (Opcional)
+            <label className="block text-xs font-medium uppercase tracking-wider text-[#0B132B] mb-1">
+              Observaciones del Emplazamiento
             </label>
             <textarea
               name="notes"
               rows={3}
-              placeholder="Ej: Tablero secundario con térmicas viejas. Coordinar horario con el consorcio."
+              placeholder="Notas de consorcio, horarios de acceso o tablero existente..."
               value={formData.notes}
               onChange={handleChange}
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium focus:border-[#1E40AF] focus:ring-2 focus:ring-blue-100"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#E2E8F0] text-xs font-normal text-[#0B132B] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
             />
           </div>
 
           {/* Botones de acción */}
-          <div className="pt-2 flex items-center gap-3">
+          <div className="pt-3 border-t border-[#E2E8F0] flex items-center gap-3">
             <Link
               href="/customers"
-              className="w-1/3 py-3.5 px-4 text-center rounded-xl border border-slate-200 font-bold text-xs text-slate-700 hover:bg-slate-50 transition-all"
+              prefetch={true}
+              className="w-1/3 py-2.5 px-4 text-center rounded-lg border border-[#E2E8F0] font-medium text-xs text-[#475569] hover:bg-[#F8FAFC] transition-colors"
             >
               Cancelar
             </Link>
             <button
               type="submit"
               disabled={loading}
-              className="w-2/3 bg-[#1E40AF] hover:bg-blue-800 text-white font-bold text-sm py-3.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-70 cursor-pointer"
+              className="w-2/3 bg-[#0B132B] hover:bg-[#1C2541] text-white font-medium text-xs py-2.5 px-4 rounded-lg shadow-sm transition-all flex items-center justify-center space-x-2 disabled:opacity-70 cursor-pointer"
             >
               {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Guardando...</span>
-                </>
+                <span>Guardando comitente...</span>
               ) : (
                 <>
-                  <UserPlus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Guardar Cliente</span>
+                  <UserPlus className="w-4 h-4" strokeWidth={1.5} />
+                  <span>Registrar Comitente</span>
                 </>
               )}
             </button>

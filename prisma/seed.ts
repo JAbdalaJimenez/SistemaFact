@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 export async function seedDatabase() {
-  console.log("🌱 Iniciando seed ampliado de datos para ElectroCba (Córdoba, Argentina)...");
+  console.log("[SEED] Iniciando seed ampliado de datos para ElectroCba (Córdoba, Argentina)...");
 
   // 1. Limpiar datos previos si existen
   try {
@@ -350,17 +350,17 @@ export async function seedDatabase() {
     },
   });
 
-  console.log("✅ Seed completado con éxito!");
-  console.log(`🏢 Organización: ${org.name} (${org.taxCondition})`);
-  console.log(`👤 Usuario OWNER: marcos@electrocba.com.ar / electrocba2026`);
-  console.log(`👤 Usuario MEMBER: tecnico@electrocba.com.ar / tecnico2026`);
-  console.log(`📋 Presupuestos formales con discriminación Mano de Obra / Materiales IRAM y Cláusulas Legales.`);
+  console.log("[OK] Seed completado con exito.");
+  console.log(`[ORG] Organizacion: ${org.name} (${org.taxCondition})`);
+  console.log(`[AUTH] Usuario OWNER: marcos@electrocba.com.ar / electrocba2026`);
+  console.log(`[AUTH] Usuario MEMBER: tecnico@electrocba.com.ar / tecnico2026`);
+  console.log(`[EXP] Presupuestos formales con discriminacion Mano de Obra / Materiales IRAM y Clausulas Legales.`);
 }
 
 if (require.main === module || process.argv[1]?.includes("seed.ts")) {
   seedDatabase()
     .catch((e) => {
-      console.error("❌ Error en seed:", e);
+      console.error("[ERROR] Error en seed:", e);
       process.exit(1);
     })
     .finally(async () => {

@@ -62,13 +62,13 @@ export default async function PublicQuotePage({ params }: Props) {
         {/* BARRA SUPERIOR DECORATIVA - ACENTO CHAMPAGNE GOLD */}
         <div className="h-1 bg-gradient-to-r from-[#9A6E24] via-[#C5A059] to-[#9A6E24]" />
 
-        {/* MEMBRETE ASIMÉTRICO EJECUTIVO - DEEP OBSIDIAN & CHAMPAGNE GOLD */}
-        <div className="bg-[#0F172A] p-6 sm:p-8 text-white border-b border-[#1E293B]">
+        {/* MEMBRETE ASIMÉTRICO EJECUTIVO - OXFORD BLUE & CHAMPAGNE GOLD */}
+        <div className="bg-[#0B132B] p-6 sm:p-8 text-white border-b border-[#1C2541]">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             {/* LADO IZQUIERDO: INSTALADOR MATRICULADO ERSEP */}
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 rounded-xl bg-[#1E293B] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0">
+                <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0">
                   <Image
                     src="/logo-icon.png"
                     alt="ElectroCba"

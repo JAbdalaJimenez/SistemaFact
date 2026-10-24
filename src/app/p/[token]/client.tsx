@@ -58,11 +58,11 @@ export function PublicQuoteClient({
   const pdfDownloadUrl = `${baseUrl}/api/quotes/${quoteId}/export/pdf`;
   const docxDownloadUrl = `${baseUrl}/api/quotes/${quoteId}/export/docx`;
 
-  // 1. Enlace para aprobar vía WhatsApp directo al electricista
+  // 1. Enlace para aprobar vía WhatsApp directo al instalador habilitado
   const cleanElectricianPhone = formatPhoneForWhatsApp(electricianPhone);
-  const approvalMessage = `¡Hola Marcos! Soy ${customerName}.\n\nHe revisado el presupuesto formal N° ${quoteNumber} (*${title}*) y deseo *APROBARLO* por el total de *${formatCurrencyARS(
+  const approvalMessage = `Estimado Marcos Romero (ElectroCba):\n\nConfirmo la aprobación formal del Presupuesto N° ${quoteNumber} (*${title}*) por el monto total de *${formatCurrencyARS(
     totalAmount
-  )}* (Seña: ${formatCurrencyARS(depositAmount)}).\n\n¿En qué fecha podemos coordinar el inicio de obra?`;
+  )}* (Seña formal: ${formatCurrencyARS(depositAmount)}).\n\nAcepto los términos normativos de la Ley 10.281 y Ley 24.240. Solicito coordinar la fecha de inicio de obra.`;
 
   const waApprovalUrl = `https://wa.me/${cleanElectricianPhone}?text=${encodeURIComponent(
     approvalMessage
@@ -70,9 +70,9 @@ export function PublicQuoteClient({
 
   // 2. Enlace predefinido para compartir presupuesto y PDF por WhatsApp
   const cleanCustomerPhone = customerPhone ? formatPhoneForWhatsApp(customerPhone) : "";
-  const shareMessage = `Hola ${customerName}, te comparto el presupuesto formal N° ${quoteNumber} de ElectroCba por ${title}.\n\nTotal: ${formatCurrencyARS(
+  const shareMessage = `Estimado/a ${customerName}:\n\nLe remito el Presupuesto Formal N° ${quoteNumber} emitido por ElectroCba para ${title}.\n\nMonto Total: ${formatCurrencyARS(
     totalAmount
-  )} (Vigencia ${validityDays} días).\n\nPodés revisarlo y abonar la seña online aquí:\n🔗 ${publicUrl}\n\nO descargar el PDF formal aquí:\n📄 ${pdfDownloadUrl}`;
+  )} (Vigencia: ${validityDays} días corridos).\n\nPuede revisar la ficha técnica reglamentaria y confirmar el anticipo en el siguiente enlace oficial:\n${publicUrl}\n\nDescarga del instrumento en PDF formal:\n${pdfDownloadUrl}`;
 
   const waShareUrl = cleanCustomerPhone
     ? `https://wa.me/${cleanCustomerPhone}?text=${encodeURIComponent(shareMessage)}`

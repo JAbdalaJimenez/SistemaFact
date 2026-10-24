@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Validar firma del Webhook
     if (dataId && !verifyMercadoPagoSignature(xSignature, xRequestId, dataId)) {
-      console.warn("⚠️ Firma de Webhook de Mercado Pago inválida:", { dataId, xSignature });
+      console.warn("[MercadoPago Webhook] Firma inválida:", { dataId, xSignature });
       return NextResponse.json({ error: "Firma de webhook inválida" }, { status: 401 });
     }
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
                 mpPaymentId: dataId,
                 notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
               });
-              console.log(`✅ Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
+              console.log(`[MercadoPago Webhook] Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
             }
           } catch {
             await recordPayment(org.id, {

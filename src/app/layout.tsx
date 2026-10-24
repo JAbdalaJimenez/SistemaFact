@@ -13,7 +13,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#0F172A",
+  themeColor: "#0B132B",
 };
 
 export default function RootLayout({
@@ -24,7 +24,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body
-        className="min-h-screen bg-[#F8FAFC] text-[#0F172A] antialiased flex flex-col font-sans"
+        className="min-h-screen bg-[#F8FAFC] text-[#0B132B] antialiased flex flex-col font-sans"
         suppressHydrationWarning
       >
         <AppNavigation />
