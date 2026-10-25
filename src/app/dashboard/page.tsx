@@ -10,6 +10,7 @@ import {
   UserPlus,
   MapPin,
   UserCog,
+  Settings,
 } from "lucide-react";
 import { getDashboardMetrics, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
@@ -80,6 +81,14 @@ export default async function DashboardPage() {
                 <span>Usuarios</span>
               </Link>
             )}
+            <Link
+              href="/dashboard/settings"
+              prefetch={true}
+              className="bg-[#1C2541] hover:bg-[#2A3B5C] text-white border border-[#C5A059]/40 font-medium text-xs sm:text-sm py-2.5 px-3.5 rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
+            >
+              <Settings className="w-4 h-4 text-[#C5A059]" strokeWidth={1.5} />
+              <span>Ajustes</span>
+            </Link>
             <Link
               href="/quotes/new"
               prefetch={true}

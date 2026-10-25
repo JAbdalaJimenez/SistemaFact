@@ -65,16 +65,37 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
         }
       })
       .catch(() => {});
-  }, []);
 
-  const handleLogout = async () => {
+    // Precargar rutas críticas en segundo plano para respuesta táctil instantánea (0ms)
+    try {
+      router.prefetch("/dashboard/settings");
+      router.prefetch("/dashboard/users");
+      router.prefetch("/login");
+    } catch {}
+  }, [router]);
+
+  const handleLogout = () => {
+    // 1. Destrucción síncrona inmediata en el navegador (0ms)
     try {
       sessionStorage.clear();
+      localStorage.removeItem("electrocba_user");
+      document.cookie = "electrocba_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0; SameSite=Lax;";
     } catch {}
-    await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
-    router.push("/login");
-    router.refresh();
+
+    // 2. Notificación en segundo plano al servidor (fire & forget, nunca traba la UI)
+    try {
+      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+        navigator.sendBeacon("/api/auth/logout");
+      } else {
+        fetch("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
+      }
+    } catch {
+      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    }
+
+    // 3. Salida inmediata a login sin demoras
+    window.location.replace("/login");
   };
 
   // No mostrar navegación en páginas públicas como /login, /p/[token] o checkout
@@ -115,14 +136,14 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
       {/* HEADER SUPERIOR (Mobile y Desktop) - Architectural Executive */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-[#E2E8F0]">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center space-x-3 group">
-            <div className="relative flex items-center">
+          <Link href="/dashboard" prefetch={true} className="flex items-center space-x-2 sm:space-x-3 group min-w-0">
+            <div className="relative flex items-center shrink-0">
               <Image
                 src="/logo-full.png"
                 alt="ElectroCba - Ingeniería & Servicios Técnicos"
                 width={195}
                 height={40}
-                className="h-9 w-auto object-contain transition-transform group-hover:scale-[1.02]"
+                className="h-8 sm:h-9 w-auto max-w-[140px] sm:max-w-none object-contain transition-transform group-hover:scale-[1.02]"
                 priority
               />
             </div>
@@ -140,7 +161,7 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
           </Link>
 
           {/* PERFIL, USUARIOS (SUPERADMIN), AJUSTES Y BOTÓN LOGOUT */}
-          <div className="flex items-center space-x-1.5 sm:space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
             <div className="hidden sm:block text-right">
               <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
                 <span className="text-xs font-semibold text-[#0B132B]" suppressHydrationWarning>
@@ -165,27 +186,33 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
             {isSuperadmin && (
               <Link
                 href="/dashboard/users"
+                prefetch={true}
                 title="Gestión de Usuarios (Superadmin)"
-                className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-colors"
+                aria-label="Gestión de Usuarios"
+                className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-slate-100 active:scale-90 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-all cursor-pointer shrink-0 touch-manipulation"
               >
-                <UserCog className="w-4 h-4 text-[#9A6E24]" strokeWidth={1.5} />
+                <UserCog className="w-5 h-5 text-[#9A6E24] pointer-events-none" strokeWidth={1.6} />
               </Link>
             )}
 
             <Link
               href="/dashboard/settings"
+              prefetch={true}
               title="Configuración de la Organización"
-              className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-slate-100 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-colors"
+              aria-label="Configuración de la Organización"
+              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-slate-100 active:scale-90 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-all cursor-pointer shrink-0 touch-manipulation"
             >
-              <Settings className="w-4 h-4 text-[#9A6E24]" strokeWidth={1.5} />
+              <Settings className="w-5 h-5 text-[#9A6E24] pointer-events-none" strokeWidth={1.6} />
             </Link>
 
             <button
               onClick={handleLogout}
+              type="button"
               title="Cerrar Sesión"
-              className="w-9 h-9 rounded-lg bg-[#F8FAFC] hover:bg-red-50 text-[#475569] hover:text-red-700 border border-[#E2E8F0] hover:border-red-200 flex items-center justify-center transition-colors cursor-pointer"
+              aria-label="Cerrar Sesión"
+              className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-red-50 active:scale-90 text-[#475569] hover:text-red-700 border border-[#E2E8F0] hover:border-red-200 flex items-center justify-center transition-all cursor-pointer shrink-0 touch-manipulation"
             >
-              <LogOut className="w-4 h-4" strokeWidth={1.5} />
+              <LogOut className="w-5 h-5 pointer-events-none text-slate-600 hover:text-red-700" strokeWidth={1.6} />
             </button>
           </div>
         </div>

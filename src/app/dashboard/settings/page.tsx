@@ -100,9 +100,13 @@ export default function SettingsPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
+      let data: any = {};
+      try {
+        data = await res.json();
+      } catch {}
+
       if (!res.ok) {
-        throw new Error(data.error || "No se pudo guardar la configuración");
+        throw new Error(data.error || `Error del servidor (${res.status})`);
       }
 
       setSavedSuccess(true);
@@ -114,17 +118,6 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 space-y-3">
-        <Loader2 className="w-7 h-7 animate-spin text-[#C5A059]" />
-        <p className="text-xs text-slate-500 font-medium">
-          Cargando configuración profesional...
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto space-y-6 font-sans pb-16">
       {/* ENCABEZADO */}
@@ -133,14 +126,22 @@ export default function SettingsPage() {
           <Link
             href="/dashboard"
             prefetch={true}
-            className="w-9 h-9 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center text-[#475569] hover:text-[#0B132B] shadow-sm transition-colors"
+            className="w-9 h-9 rounded-lg bg-white border border-[#E2E8F0] flex items-center justify-center text-[#475569] hover:text-[#0B132B] shadow-sm transition-colors active:scale-95"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
           </Link>
           <div>
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A6E24] block">
-              Configuración Multi-Tenant • Perfil Profesional
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-[#9A6E24] block">
+                Configuración Multi-Tenant • Perfil Profesional
+              </span>
+              {loading && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-[#9A6E24] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 animate-pulse">
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  Sincronizando
+                </span>
+              )}
+            </div>
             <h1 className="text-xl sm:text-2xl font-semibold text-[#0B132B] tracking-tight">
               Identidad del Instalador & Pasarelas
             </h1>

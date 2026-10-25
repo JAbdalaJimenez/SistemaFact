@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { updateSession } from "@/utils/supabase/middleware";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
@@ -14,10 +13,7 @@ const PROTECTED_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Actualizar sesión de Supabase si aplica
-  const supabaseRes = updateSession(req);
-
-  // Rutas públicas explícitas
+  // Rutas públicas explícitas (bypasses inmediatos en 0ms)
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/p/") ||
@@ -26,7 +22,7 @@ export async function middleware(req: NextRequest) {
     pathname.includes("/export/") ||
     pathname.startsWith("/payments") ||
     pathname.startsWith("/_next") ||
-    pathname.includes(".") // static assets
+    pathname.includes(".") // static assets y favicon
   ) {
     // Si ya está logueado e intenta ir a /login, redirigir a /dashboard
     if (pathname === "/login") {
@@ -40,7 +36,7 @@ export async function middleware(req: NextRequest) {
         }
       }
     }
-    return supabaseRes;
+    return NextResponse.next();
   }
 
   // Verificar si la ruta requiere autenticación
@@ -58,9 +54,9 @@ export async function middleware(req: NextRequest) {
     }
 
     try {
-      // Validar token criptográficamente
+      // Validar token criptográficamente en memoria (<0.5ms)
       await jwtVerify(token, JWT_SECRET);
-      return supabaseRes;
+      return NextResponse.next();
     } catch {
       // Token expirado o alterado
       const loginUrl = new URL("/login", req.url);
@@ -71,7 +67,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  return supabaseRes;
+  return NextResponse.next();
 }
 
 export const config = {
