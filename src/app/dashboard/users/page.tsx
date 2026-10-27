@@ -3,6 +3,9 @@ import { getSession } from "@/lib/auth";
 import { getUsers } from "@/lib/services";
 import { UsersManagerClient } from "./client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata = {
   title: "Gestión de Usuarios | Superadmin ElectroCba",
   description: "Administración de usuarios, roles y credenciales del sistema",

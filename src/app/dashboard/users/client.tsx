@@ -19,6 +19,7 @@ import {
   Briefcase,
   KeyRound,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 interface UserItem {
@@ -58,6 +59,7 @@ export function UsersManagerClient({ currentUser, initialUsers = [] }: Props) {
   const [successMessage, setSuccessMessage] = useState("");
 
   const loadUsers = async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/users");
       const data = await res.json();
@@ -72,8 +74,12 @@ export function UsersManagerClient({ currentUser, initialUsers = [] }: Props) {
   };
 
   useEffect(() => {
-    if (initialUsers.length === 0) {
-      loadUsers();
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
+    if (initialUsers && initialUsers.length > 0) {
+      setUsers(initialUsers);
     }
   }, [initialUsers]);
 
@@ -200,17 +206,28 @@ export function UsersManagerClient({ currentUser, initialUsers = [] }: Props) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setShowCreateModal(true);
-            setFormError("");
-          }}
-          className="bg-[#0B132B] hover:bg-[#1C2541] text-white font-medium text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
-        >
-          <UserPlus className="w-4 h-4 text-[#C5A059]" strokeWidth={1.5} />
-          <span>Alta de Usuario</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={loadUsers}
+            disabled={loading}
+            title="Refrescar lista desde la base de datos"
+            className="w-10 h-10 rounded-xl bg-white border border-[#E2E8F0] hover:bg-slate-50 text-[#475569] hover:text-[#0B132B] flex items-center justify-center shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 text-[#9A6E24] ${loading ? "animate-spin" : ""}`} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowCreateModal(true);
+              setFormError("");
+            }}
+            className="bg-[#0B132B] hover:bg-[#1C2541] text-white font-medium text-xs sm:text-sm py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+          >
+            <UserPlus className="w-4 h-4 text-[#C5A059]" strokeWidth={1.5} />
+            <span>Alta de Usuario</span>
+          </button>
+        </div>
       </div>
 
       {/* MENSAJES DE ÉXITO */}

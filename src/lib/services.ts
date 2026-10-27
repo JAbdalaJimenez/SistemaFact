@@ -250,20 +250,19 @@ export function saveLocalStore() {
 // Cargar store al iniciar
 loadLocalStore();
 
-// Circuito de alta velocidad: inicializa en false para que el servidor responda en <1ms
-let isDbReachable = false;
+// Estado de conexión a la base de datos
+let isDbReachable = true;
 let lastDbCheck = 0;
-const DB_RETRY_COOLDOWN = 60_000;
+const DB_RETRY_COOLDOWN = 15_000;
 
 export async function isDatabaseOnline(): Promise<boolean> {
   return isDbReachable;
 }
 
-// Conexión ultrarrápida con Circuit Breaker sin latencia
+// Conexión a PostgreSQL Supabase con fallback de emergencia
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promise<T> {
   const now = Date.now();
-  // Circuit Breaker: si la BD no está disponible, responder directamente desde memoria (0ms)
   if (!isDbReachable && now - lastDbCheck < DB_RETRY_COOLDOWN) {
     loadLocalStore();
     return await fallbackFn();
@@ -271,14 +270,25 @@ async function tryPrisma<T>(fn: () => Promise<T>, fallbackFn: () => any): Promis
 
   try {
     lastDbCheck = now;
-    // Timeout ultra-agresivo de 150ms para jamás congelar la UI si PostgreSQL no responde
+    // Timeout de 5000ms para permitir conexiones remotas a Supabase
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("DB_FAST_TIMEOUT")), 150)
+      setTimeout(() => reject(new Error("DB_TIMEOUT")), 5000)
     );
     const result = await Promise.race([fn(), timeoutPromise]);
     isDbReachable = true;
     return result;
-  } catch {
+  } catch (error: any) {
+    // Si el error es de lógica de negocio (duplicado o constraint), propagarlo directamente sin fallback
+    const msg = String(error?.message || error);
+    if (
+      msg.includes("Ya existe") ||
+      error?.code === "P2002" ||
+      msg.includes("Unique constraint")
+    ) {
+      throw new Error("Ya existe un usuario registrado con este correo electrónico.");
+    }
+
+    console.warn("[Prisma] Conexión fallida o timeout con Supabase:", msg);
     isDbReachable = false;
     loadLocalStore();
     return await fallbackFn();
@@ -1034,7 +1044,7 @@ export async function getUsers() {
         role: u.role,
         phone: u.phone,
         organizationId: u.organizationId,
-        organizationName: u.organization.name,
+        organizationName: u.organization?.name || "ElectroCba",
         createdAt: u.createdAt.toISOString(),
       }));
     },
