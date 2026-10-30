@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db";
+import prisma, { cleanDatabaseUrl } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -9,16 +9,28 @@ export const dynamic = "force-dynamic";
  */
 export async function GET() {
   const rawUrl = process.env.DATABASE_URL || "";
+  const cleanedUrl = cleanDatabaseUrl(rawUrl);
+
+  // Diagnóstico del valor crudo sin exponer credenciales
+  const rawDiagnostics = {
+    configured: rawUrl.length > 0,
+    length: rawUrl.length,
+    startsWith: rawUrl.slice(0, 13),
+    hasQuotes: /["'`]/.test(rawUrl),
+    hasBrackets: /[\[\]]/.test(rawUrl),
+    hasSpaces: /\s/.test(rawUrl),
+  };
+
   let host = "NO CONFIGURADA";
   let port = "";
   try {
-    if (rawUrl) {
-      const parsed = new URL(rawUrl);
+    if (cleanedUrl) {
+      const parsed = new URL(cleanedUrl);
       host = parsed.hostname;
       port = parsed.port;
     }
   } catch {
-    host = "URL MAL FORMADA (revisar comillas o corchetes)";
+    host = "URL MAL FORMADA";
   }
 
   try {
@@ -32,6 +44,7 @@ export async function GET() {
       port,
       customers,
       quotes,
+      rawDiagnostics,
     });
   } catch (error) {
     return NextResponse.json(
@@ -39,6 +52,7 @@ export async function GET() {
         database: "ERROR DE CONEXION",
         host,
         port,
+        rawDiagnostics,
         error: error instanceof Error ? error.message.slice(0, 300) : String(error),
       },
       { status: 500 }
