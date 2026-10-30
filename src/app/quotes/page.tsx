@@ -73,17 +73,22 @@ export default async function QuotesListPage() {
         <div className="space-y-3">
           {quotes.map((q) => {
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-            const publicUrl = `/p/${q.publicToken}`;
-            const waPhone = formatPhoneForWhatsApp(q.customer.phone);
-            const waMessage = `Estimado/a ${q.customer.name}:\n\nLe remitimos el enlace oficial correspondiente a su presupuesto formal (${q.title || "Servicios Técnicos Especializados"}):\n${baseUrl}${publicUrl}\n\nAtentamente,\n${orgSigner} (${orgLicense}).`;
-            const waUrl = `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}`;
+            const safeToken = q.publicToken || q.id || "";
+            const publicUrl = safeToken ? `/p/${safeToken}` : "#";
+            const customerName = q.customer?.name || "Comitente General";
+            const customerPhone = q.customer?.phone || "";
+            const customerNeighborhood = q.customer?.neighborhood ? ` (${q.customer.neighborhood})` : "";
+            const waPhone = customerPhone ? formatPhoneForWhatsApp(customerPhone) : "";
+            const waMessage = `Estimado/a ${customerName}:\n\nLe remitimos el enlace oficial correspondiente a su presupuesto formal (${q.title || "Servicios Técnicos Especializados"}):\n${baseUrl}${publicUrl}\n\nAtentamente,\n${orgSigner} (${orgLicense}).`;
+            const waUrl = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waMessage)}` : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
 
             const isApproved = q.status === "APPROVED" || q.status === "CONVERTED";
             const isSent = q.status === "SENT";
+            const tokenPreview = safeToken ? (safeToken.length >= 8 ? safeToken.slice(0, 8) : safeToken) : "S/D";
 
             return (
               <div
-                key={q.id}
+                key={q.id || Math.random()}
                 className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-sm hover:border-[#C5A059]/40 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
               >
                 <div className="min-w-0">
@@ -112,12 +117,12 @@ export default async function QuotesListPage() {
 
                   <div className="mt-1 flex items-center gap-3 text-xs text-[#475569] flex-wrap font-normal">
                     <span>
-                      Comitente: <strong className="text-[#0B132B] font-medium">{q.customer.name}</strong> ({q.customer.neighborhood})
+                      Comitente: <strong className="text-[#0B132B] font-medium">{customerName}</strong>{customerNeighborhood}
                     </span>
                     <span>•</span>
                     <span className="tabular-nums">{q.items?.length || 0} partidas</span>
                     <span>•</span>
-                    <span className="font-mono text-[11px] text-slate-400">Token: {q.publicToken.slice(0, 8)}...</span>
+                    <span className="font-mono text-[11px] text-slate-400">Token: {tokenPreview}...</span>
                   </div>
                 </div>
 

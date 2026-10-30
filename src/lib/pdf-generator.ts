@@ -3,25 +3,25 @@ import { formatCurrencyARS, formatDate } from "./types";
 import fs from "fs";
 import path from "path";
 
-interface QuoteData {
-  id: string;
+export interface QuoteData {
+  id?: string | null;
   quoteNumber?: string | null;
   title?: string | null;
-  createdAt: Date | string;
-  validityDays?: number;
+  createdAt?: Date | string | null;
+  validityDays?: number | null;
   expiresAt?: Date | string | null;
-  totalAmount: number;
-  depositPercentage?: number;
+  totalAmount?: number | null;
+  depositPercentage?: number | null;
   notes?: string | null;
-  publicToken: string;
-  customer: {
-    name: string;
-    phone: string;
-    address: string;
-    neighborhood: string;
-  };
-  organization: {
-    name: string;
+  publicToken?: string | null;
+  customer?: {
+    name?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    neighborhood?: string | null;
+  } | null;
+  organization?: {
+    name?: string | null;
     legalName?: string | null;
     ersepLicenseNumber?: string | null;
     ersepLicense?: string | null;
@@ -36,14 +36,14 @@ interface QuoteData {
     bankAlias?: string | null;
     cbuCvu?: string | null;
     aliasCbu?: string | null;
-  };
-  items: Array<{
-    description: string;
-    itemType?: "LABOR" | "MATERIALS";
-    quantity: number;
-    unitPrice: number;
-    subtotal: number;
-  }>;
+  } | null;
+  items?: Array<{
+    description?: string | null;
+    itemType?: "LABOR" | "MATERIALS" | string | null;
+    quantity?: number | null;
+    unitPrice?: number | null;
+    subtotal?: number | null;
+  }> | null;
 }
 
 export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
@@ -65,7 +65,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
   const marginX = 40;
   let cursorY = height - 40;
 
-  // Cargar logotipo oficial
+  // Cargar logotipo oficial de forma segura
   let logoImage = null;
   try {
     const logoPath = path.join(process.cwd(), "public", "logo-full.png");
@@ -74,7 +74,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
       logoImage = await pdfDoc.embedPng(logoBytes);
     }
   } catch {
-    // fallback si no estuviera disponible
+    // fallback silencioso
   }
 
   // 1. CABECERA SUPERIOR Y MEMBRETE ERSEP
@@ -96,24 +96,27 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
   });
 
   if (logoImage) {
-    const logoDims = logoImage.scale(0.28);
-    page.drawImage(logoImage, {
-      x: width - marginX - logoDims.width - 12,
-      y: cursorY - 50,
-      width: logoDims.width,
-      height: logoDims.height,
-    });
+    try {
+      const logoDims = logoImage.scale(0.28);
+      page.drawImage(logoImage, {
+        x: width - marginX - logoDims.width - 12,
+        y: cursorY - 50,
+        width: logoDims.width,
+        height: logoDims.height,
+      });
+    } catch {}
   }
 
-  const orgName = quote.organization.name || "ElectroCba - Soluciones Eléctricas";
+  const org = quote.organization || {};
+  const orgName = org.name || "ElectroCba - Soluciones Eléctricas";
   const orgLicense =
-    quote.organization.ersepLicenseNumber ||
-    quote.organization.ersepLicense ||
+    org.ersepLicenseNumber ||
+    org.ersepLicense ||
     "Matrícula Habilitada ERSeP";
-  const cuitStr = quote.organization.cuit ? ` • CUIT: ${quote.organization.cuit}` : "";
-  const vatStr = quote.organization.vatCondition || quote.organization.taxCondition || "Monotributo";
-  const addrStr = quote.organization.legalAddress || quote.organization.address || "Córdoba Capital";
-  const phoneVal = quote.organization.phone || quote.organization.whatsappNumber || "";
+  const cuitStr = org.cuit ? ` • CUIT: ${org.cuit}` : "";
+  const vatStr = org.vatCondition || org.taxCondition || "Monotributo";
+  const addrStr = org.legalAddress || org.address || "Córdoba Capital";
+  const phoneVal = org.phone || org.whatsappNumber || "";
   const phoneStr = phoneVal ? ` | Tel: ${phoneVal}` : "";
 
   page.drawText(orgName, {
@@ -142,10 +145,14 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
 
   cursorY -= 80;
 
-  // 2. TÍTULO DEL COMPROBANTE Y NÚMERO FORMAL
-  const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
-  const createdAtDate = new Date(quote.createdAt);
-  const validityDays = quote.validityDays || 15;
+  // 2. TÍTULO DEL COMPROBANTE Y NÚMERO FORMAL (Protegido contra IDs nulos)
+  const safeId = quote.id ? String(quote.id) : "000000";
+  const quoteNum =
+    quote.quoteNumber ||
+    `EC-${safeId.length >= 6 ? safeId.slice(-6).toUpperCase() : safeId.toUpperCase()}`;
+
+  const createdAtDate = quote.createdAt ? new Date(quote.createdAt) : new Date();
+  const validityDays = Number(quote.validityDays) || 15;
   const expirationDate = quote.expiresAt
     ? new Date(quote.expiresAt)
     : new Date(createdAtDate.getTime() + validityDays * 86400000);
@@ -158,17 +165,26 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: primaryBlue,
   });
 
-  page.drawText(`Emisión: ${formatDate(createdAtDate)} | Vence: ${formatDate(expirationDate)} (${validityDays} días corridos)`, {
-    x: width - marginX - 260,
-    y: cursorY,
-    size: 8.5,
-    font: fontRegular,
-    color: textMuted,
-  });
+  page.drawText(
+    `Emisión: ${formatDate(createdAtDate)} | Vence: ${formatDate(expirationDate)} (${validityDays} días corridos)`,
+    {
+      x: width - marginX - 260,
+      y: cursorY,
+      size: 8.5,
+      font: fontRegular,
+      color: textMuted,
+    }
+  );
 
   cursorY -= 20;
 
-  // 3. TARJETA DE DATOS DEL CLIENTE Y TRABAJO
+  // 3. TARJETA DE DATOS DEL CLIENTE Y TRABAJO (Protegido contra customer nulo)
+  const cust = quote.customer || {};
+  const custName = cust.name || "Comitente General";
+  const custAddress = cust.address || "Córdoba Capital";
+  const custNeighborhood = cust.neighborhood ? ` (${cust.neighborhood}, Córdoba)` : " (Córdoba)";
+  const custPhone = cust.phone || "No informado";
+
   page.drawRectangle({
     x: marginX,
     y: cursorY - 45,
@@ -179,7 +195,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     borderWidth: 1,
   });
 
-  page.drawText(`Cliente: ${quote.customer.name}`, {
+  page.drawText(`Cliente: ${custName}`, {
     x: marginX + 10,
     y: cursorY - 15,
     size: 10,
@@ -187,7 +203,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: textDark,
   });
 
-  page.drawText(`Domicilio: ${quote.customer.address} (${quote.customer.neighborhood}, Córdoba)`, {
+  page.drawText(`Domicilio: ${custAddress}${custNeighborhood}`, {
     x: marginX + 10,
     y: cursorY - 28,
     size: 9,
@@ -203,7 +219,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: primaryBlue,
   });
 
-  page.drawText(`Teléfono: ${quote.customer.phone}`, {
+  page.drawText(`Teléfono: ${custPhone}`, {
     x: width - marginX - 160,
     y: cursorY - 15,
     size: 9,
@@ -213,7 +229,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
 
   cursorY -= 65;
 
-  // 4. TABLA DE ÍTEMS
+  // 4. TABLA DE ÍTEMS (Protegido contra items vacíos o nulos)
   const colX = {
     desc: marginX + 8,
     type: marginX + 270,
@@ -231,47 +247,123 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: primaryBlue,
   });
 
-  page.drawText("DESCRIPCIÓN DE LA TAREA O MATERIAL", { x: colX.desc, y: cursorY - 9, size: 8, font: fontBold, color: rgb(1, 1, 1) });
-  page.drawText("TIPO", { x: colX.type, y: cursorY - 9, size: 8, font: fontBold, color: rgb(1, 1, 1) });
-  page.drawText("CANT", { x: colX.qty, y: cursorY - 9, size: 8, font: fontBold, color: rgb(1, 1, 1) });
-  page.drawText("UNITARIO", { x: colX.unit, y: cursorY - 9, size: 8, font: fontBold, color: rgb(1, 1, 1) });
-  page.drawText("SUBTOTAL", { x: colX.subtotal, y: cursorY - 9, size: 8, font: fontBold, color: rgb(1, 1, 1) });
+  page.drawText("DESCRIPCIÓN DE LA TAREA O MATERIAL", {
+    x: colX.desc,
+    y: cursorY - 9,
+    size: 8,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("TIPO", {
+    x: colX.type,
+    y: cursorY - 9,
+    size: 8,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("CANT", {
+    x: colX.qty,
+    y: cursorY - 9,
+    size: 8,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("UNITARIO", {
+    x: colX.unit,
+    y: cursorY - 9,
+    size: 8,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
+  page.drawText("SUBTOTAL", {
+    x: colX.subtotal,
+    y: cursorY - 9,
+    size: 8,
+    font: fontBold,
+    color: rgb(1, 1, 1),
+  });
 
   cursorY -= 20;
 
   // Filas de ítems
-  quote.items.forEach((item, index) => {
-    const isEven = index % 2 === 0;
-    if (isEven) {
-      page.drawRectangle({
-        x: marginX,
-        y: cursorY - 14,
-        width: width - marginX * 2,
-        height: 17,
-        color: rgb(241 / 255, 245 / 255, 249 / 255),
-      });
-    }
+  const items = Array.isArray(quote.items) ? quote.items : [];
 
-    const typeLabel = item.itemType === "MATERIALS" ? "Material IRAM" : "Mano de Obra";
-
-    // Truncar descripción si es muy larga
-    const truncatedDesc = item.description.length > 46 ? item.description.slice(0, 44) + "..." : item.description;
-
-    page.drawText(truncatedDesc, { x: colX.desc, y: cursorY - 9, size: 8, font: fontRegular, color: textDark });
-    page.drawText(typeLabel, { x: colX.type, y: cursorY - 9, size: 7.5, font: fontBold, color: item.itemType === "MATERIALS" ? successGreen : primaryBlue });
-    page.drawText(String(item.quantity), { x: colX.qty + 6, y: cursorY - 9, size: 8, font: fontRegular, color: textDark });
-    page.drawText(formatCurrencyARS(item.unitPrice), { x: colX.unit, y: cursorY - 9, size: 8, font: fontRegular, color: textDark });
-    page.drawText(formatCurrencyARS(item.subtotal), { x: colX.subtotal, y: cursorY - 9, size: 8, font: fontBold, color: textDark });
-
+  if (items.length === 0) {
+    page.drawText("Tareas según memoria descriptiva y especificaciones técnicas generales.", {
+      x: colX.desc,
+      y: cursorY - 9,
+      size: 8,
+      font: fontRegular,
+      color: textDark,
+    });
     cursorY -= 17;
-  });
+  } else {
+    items.forEach((item, index) => {
+      const isEven = index % 2 === 0;
+      if (isEven) {
+        page.drawRectangle({
+          x: marginX,
+          y: cursorY - 14,
+          width: width - marginX * 2,
+          height: 17,
+          color: rgb(241 / 255, 245 / 255, 249 / 255),
+        });
+      }
+
+      const typeLabel = item?.itemType === "MATERIALS" ? "Material IRAM" : "Mano de Obra";
+      const desc = item?.description || "Partida presupuestaria";
+      const truncatedDesc = desc.length > 46 ? desc.slice(0, 44) + "..." : desc;
+      const qty = Number(item?.quantity) || 1;
+      const unitPrice = Number(item?.unitPrice) || 0;
+      const subtotal = Number(item?.subtotal) || qty * unitPrice;
+
+      page.drawText(truncatedDesc, {
+        x: colX.desc,
+        y: cursorY - 9,
+        size: 8,
+        font: fontRegular,
+        color: textDark,
+      });
+      page.drawText(typeLabel, {
+        x: colX.type,
+        y: cursorY - 9,
+        size: 7.5,
+        font: fontBold,
+        color: item?.itemType === "MATERIALS" ? successGreen : primaryBlue,
+      });
+      page.drawText(String(qty), {
+        x: colX.qty + 6,
+        y: cursorY - 9,
+        size: 8,
+        font: fontRegular,
+        color: textDark,
+      });
+      page.drawText(formatCurrencyARS(unitPrice), {
+        x: colX.unit,
+        y: cursorY - 9,
+        size: 8,
+        font: fontRegular,
+        color: textDark,
+      });
+      page.drawText(formatCurrencyARS(subtotal), {
+        x: colX.subtotal,
+        y: cursorY - 9,
+        size: 8,
+        font: fontBold,
+        color: textDark,
+      });
+
+      cursorY -= 17;
+    });
+  }
 
   cursorY -= 15;
 
   // 5. CAJA DE TOTALES Y CONDICIONES DE PAGO
-  const depositPercent = quote.depositPercentage || 50;
-  const depositAmount = Math.round((quote.totalAmount * depositPercent) / 100);
-  const remainingAmount = quote.totalAmount - depositAmount;
+  const totalAmount = Number(quote.totalAmount) || 0;
+  const depositPercent = Number(quote.depositPercentage) || 50;
+  const depositAmount = Math.round((totalAmount * depositPercent) / 100);
+  const remainingAmount = totalAmount - depositAmount;
 
   page.drawRectangle({
     x: width - marginX - 220,
@@ -290,7 +382,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     font: fontBold,
     color: primaryBlue,
   });
-  page.drawText(formatCurrencyARS(quote.totalAmount), {
+  page.drawText(formatCurrencyARS(totalAmount), {
     x: width - marginX - 80,
     y: cursorY - 16,
     size: 11,
@@ -349,8 +441,8 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: rgb(180 / 255, 83 / 255, 9 / 255), // amber-700
   });
 
-  const bankAlias = quote.organization.bankAlias || quote.organization.aliasCbu;
-  const cbuCvu = quote.organization.cbuCvu;
+  const bankAlias = org.bankAlias || org.aliasCbu;
+  const cbuCvu = org.cbuCvu;
   const bankDetails = bankAlias ? `Alias: ${bankAlias}` : (cbuCvu ? `CBU/CVU: ${cbuCvu}` : "Transferencia directa");
 
   const legalLines = [
@@ -383,7 +475,7 @@ export async function generateQuotePdf(quote: QuoteData): Promise<Uint8Array> {
     color: textMuted,
   });
 
-  const signerName = quote.organization.legalName || quote.organization.name || "Instalador Habilitado";
+  const signerName = org.legalName || org.name || "Instalador Habilitado";
   page.drawText(signerName, {
     x: width - marginX - 160,
     y: cursorY - 12,

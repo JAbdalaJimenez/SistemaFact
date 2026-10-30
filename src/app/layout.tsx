@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AppNavigation } from "@/components/navigation";
 import { getSession } from "@/lib/auth";
+import { AuthProvider } from "@/context/auth-context";
 
 export const metadata: Metadata = {
   title: "ElectroCba | SaaS para Electricistas y Técnicos de Córdoba",
@@ -53,10 +54,12 @@ export default async function RootLayout({
         className="min-h-screen bg-[#F8FAFC] text-[#0B132B] antialiased flex flex-col font-sans select-none"
         suppressHydrationWarning
       >
-        <AppNavigation initialUser={session} />
-        <main className="flex-1 pb-24 sm:pb-12 max-w-5xl w-full mx-auto p-4 sm:p-6">
-          {children}
-        </main>
+        <AuthProvider>
+          <AppNavigation initialUser={session} />
+          <main className="flex-1 pb-24 sm:pb-12 max-w-5xl w-full mx-auto p-4 sm:p-6">
+            {children}
+          </main>
+        </AuthProvider>
       </body>
     </html>
   );

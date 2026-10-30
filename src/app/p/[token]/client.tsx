@@ -72,9 +72,10 @@ export function PublicQuoteClient({
   const remainingAmount = totalAmount - depositAmount;
 
   const baseUrl = origin || "http://localhost:3000";
-  const publicUrl = `${baseUrl}/p/${publicToken}`;
-  const pdfDownloadUrl = `${baseUrl}/api/quotes/${quoteId}/export/pdf`;
-  const docxDownloadUrl = `${baseUrl}/api/quotes/${quoteId}/export/docx`;
+  const safeIdentifier = quoteId || publicToken || "";
+  const publicUrl = publicToken ? `${baseUrl}/p/${publicToken}` : (safeIdentifier ? `${baseUrl}/p/${safeIdentifier}` : "#");
+  const pdfDownloadUrl = safeIdentifier ? `${baseUrl}/api/quotes/${safeIdentifier}/export/pdf` : "#";
+  const docxDownloadUrl = safeIdentifier ? `${baseUrl}/api/quotes/${safeIdentifier}/export/docx` : "#";
 
   // 1. Enlace para aprobar vía WhatsApp directo al instalador habilitado
   const cleanElectricianPhone = formatPhoneForWhatsApp(electricianPhone);

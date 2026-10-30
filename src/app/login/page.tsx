@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Image from "next/image";
+import { createClient } from "@/utils/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ShieldCheck,
@@ -27,6 +28,8 @@ import {
   registerBiometricCredential,
   StoredBiometricProfile,
 } from "@/lib/webauthn";
+
+const supabase = createClient();
 
 function LoginContent() {
   const router = useRouter();
@@ -124,6 +127,21 @@ function LoginContent() {
     setLoading(true);
 
     try {
+      // 1. Intentar autenticación mediante Supabase Auth para persistir la sesión en Supabase y sus cookies
+      let supabaseUser: any = null;
+      try {
+        const { data: sbData, error: sbError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (!sbError && sbData?.user) {
+          supabaseUser = sbData.user;
+        }
+      } catch (sbErr) {
+        console.warn("[Login] Supabase Auth sign-in aviso:", sbErr);
+      }
+
+      // 2. Sincronizar con el backend de ElectroCba para perfil y credenciales
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,15 +149,22 @@ function LoginContent() {
       });
 
       const data = await res.json();
-      if (!res.ok) {
+      if (!res.ok && !supabaseUser) {
         throw new Error(data.error || "Credenciales inválidas");
       }
+
+      const activeUser = data.user || {
+        id: supabaseUser.id,
+        email: supabaseUser.email,
+        name: supabaseUser.user_metadata?.name || supabaseUser.email?.split("@")[0] || "Usuario",
+        role: "MEMBER",
+      };
 
       // Limpiar contexto previo y guardar el nuevo usuario
       try {
         sessionStorage.clear();
-        if (data.user) {
-          sessionStorage.setItem("electrocba_user", JSON.stringify(data.user));
+        if (activeUser) {
+          sessionStorage.setItem("electrocba_user", JSON.stringify(activeUser));
         }
       } catch {}
 
@@ -147,13 +172,13 @@ function LoginContent() {
       // Ofrecemos activar la biometría antes de ir al dashboard
       if (
         biometricsSupported &&
-        data.user &&
-        (!savedProfile || savedProfile.userId !== data.user.id)
+        activeUser &&
+        (!savedProfile || savedProfile.userId !== activeUser.id)
       ) {
         setAuthenticatedUser({
-          id: data.user.id,
-          email: data.user.email,
-          name: data.user.name,
+          id: activeUser.id,
+          email: activeUser.email,
+          name: activeUser.name,
         });
         setLoading(false);
         setShowOfferModal(true);

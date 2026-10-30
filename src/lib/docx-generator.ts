@@ -58,16 +58,21 @@ interface QuoteData {
 }
 
 export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
-  const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
-  const depositPercent = quote.depositPercentage || 50;
-  const depositAmount = Math.round((quote.totalAmount * depositPercent) / 100);
-  const remainingAmount = quote.totalAmount - depositAmount;
+  const safeId = quote.id ? String(quote.id) : "000000";
+  const quoteNum =
+    quote.quoteNumber ||
+    `EC-${safeId.length >= 6 ? safeId.slice(-6).toUpperCase() : safeId.toUpperCase()}`;
+  const totalAmount = Number(quote.totalAmount) || 0;
+  const depositPercent = Number(quote.depositPercentage) || 50;
+  const depositAmount = Math.round((totalAmount * depositPercent) / 100);
+  const remainingAmount = totalAmount - depositAmount;
 
-  const laborItems = quote.items.filter((i) => i.itemType !== "MATERIALS");
-  const materialItems = quote.items.filter((i) => i.itemType === "MATERIALS");
+  const items = Array.isArray(quote.items) ? quote.items : [];
+  const laborItems = items.filter((i) => i.itemType !== "MATERIALS");
+  const materialItems = items.filter((i) => i.itemType === "MATERIALS");
 
-  const laborSubtotal = laborItems.reduce((acc, curr) => acc + curr.subtotal, 0);
-  const materialsSubtotal = materialItems.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const laborSubtotal = laborItems.reduce((acc, curr) => acc + (Number(curr.subtotal) || 0), 0);
+  const materialsSubtotal = materialItems.reduce((acc, curr) => acc + (Number(curr.subtotal) || 0), 0);
 
   // Helper para celdas de tabla
   const createCell = (text: string, options: { bold?: boolean; align?: (typeof AlignmentType)[keyof typeof AlignmentType]; bg?: string; width?: number } = {}) => {
@@ -115,23 +120,24 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
     ],
   });
 
-  const orgName = quote.organization.name || "ElectroCba - Soluciones Eléctricas";
+  const org = quote.organization || ({} as any);
+  const orgName = org.name || "ElectroCba - Soluciones Eléctricas";
   const orgLicense =
-    quote.organization.ersepLicenseNumber ||
-    quote.organization.ersepLicense ||
+    org.ersepLicenseNumber ||
+    org.ersepLicense ||
     "Matrícula Habilitada ERSeP";
-  const cuitText = quote.organization.cuit ? ` • CUIT: ${quote.organization.cuit}` : "";
+  const cuitText = org.cuit ? ` • CUIT: ${org.cuit}` : "";
   const vatText =
-    quote.organization.vatCondition ||
-    quote.organization.taxCondition ||
+    org.vatCondition ||
+    org.taxCondition ||
     "Monotributo - Prestador de Servicios";
   const addressText =
-    quote.organization.legalAddress || quote.organization.address || "Córdoba Capital";
-  const phoneVal = quote.organization.phone || quote.organization.whatsappNumber || "";
+    org.legalAddress || org.address || "Córdoba Capital";
+  const phoneVal = org.phone || org.whatsappNumber || "";
   const phoneText = phoneVal ? ` | Tel: ${phoneVal}` : "";
 
-  const createdAtDate = new Date(quote.createdAt);
-  const validityDays = quote.validityDays || 15;
+  const createdAtDate = quote.createdAt ? new Date(quote.createdAt) : new Date();
+  const validityDays = Number(quote.validityDays) || 15;
   const expirationDate = quote.expiresAt
     ? new Date(quote.expiresAt)
     : new Date(createdAtDate.getTime() + validityDays * 86400000);
@@ -210,19 +216,19 @@ export async function generateQuoteDocx(quote: QuoteData): Promise<Buffer> {
             spacing: { after: 180 },
           }),
 
-          // DATOS DEL CLIENTE
+          // DATOS DEL CLIENTE (Defensivo contra cliente nulo)
           new Paragraph({
             children: [
               new TextRun({ text: "CLIENTE: ", bold: true, size: 20, font: "Arial" }),
-              new TextRun({ text: `${quote.customer.name}`, size: 20, font: "Arial" }),
+              new TextRun({ text: `${quote.customer?.name || "Comitente General"}`, size: 20, font: "Arial" }),
               new TextRun({ text: "   |   UBICACIÓN: ", bold: true, size: 20, font: "Arial" }),
-              new TextRun({ text: `${quote.customer.address} (${quote.customer.neighborhood}, Córdoba)`, size: 20, font: "Arial" }),
+              new TextRun({ text: `${quote.customer?.address || "Córdoba Capital"} (${quote.customer?.neighborhood || "Centro"}, Córdoba)`, size: 20, font: "Arial" }),
             ],
           }),
           new Paragraph({
             children: [
               new TextRun({ text: "CONTACTO: ", bold: true, size: 20, font: "Arial" }),
-              new TextRun({ text: `${quote.customer.phone}`, size: 20, font: "Arial" }),
+              new TextRun({ text: `${quote.customer?.phone || "No informado"}`, size: 20, font: "Arial" }),
               new TextRun({ text: "   |   EMISIÓN: ", bold: true, size: 20, font: "Arial" }),
               new TextRun({ text: `${formatDate(createdAtDate)}`, size: 20, font: "Arial" }),
               new TextRun({ text: `   |   VENCE: `, bold: true, size: 20, font: "Arial" }),

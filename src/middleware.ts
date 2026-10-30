@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { updateSession } from "@/utils/supabase/middleware";
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
@@ -13,7 +14,24 @@ const PROTECTED_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Rutas públicas explícitas (bypasses inmediatos en 0ms)
+  // Actualizar sesión Supabase para persistencia de cookies en el cliente
+  const { response, user: supabaseUser } = await updateSession(req);
+
+  // Comprobar token legacy JWT si existe
+  const customToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+  let hasValidCustomToken = false;
+  if (customToken) {
+    try {
+      await jwtVerify(customToken, JWT_SECRET);
+      hasValidCustomToken = true;
+    } catch {
+      hasValidCustomToken = false;
+    }
+  }
+
+  const isAuthenticated = Boolean(supabaseUser) || hasValidCustomToken;
+
+  // Rutas públicas explícitas
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/p/") ||
@@ -25,18 +43,10 @@ export async function middleware(req: NextRequest) {
     pathname.includes(".") // static assets y favicon
   ) {
     // Si ya está logueado e intenta ir a /login, redirigir a /dashboard
-    if (pathname === "/login") {
-      const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-      if (token) {
-        try {
-          await jwtVerify(token, JWT_SECRET);
-          return NextResponse.redirect(new URL("/dashboard", req.url));
-        } catch {
-          // Token inválido, continuar a login
-        }
-      }
+    if (pathname === "/login" && isAuthenticated) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
     }
-    return NextResponse.next();
+    return response;
   }
 
   // Verificar si la ruta requiere autenticación
@@ -45,29 +55,19 @@ export async function middleware(req: NextRequest) {
   );
 
   if (isProtected) {
-    const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-
-    if (!token) {
+    if (!isAuthenticated) {
       const loginUrl = new URL("/login", req.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(loginUrl);
+      const redirectRes = NextResponse.redirect(loginUrl);
+      if (customToken && !hasValidCustomToken) {
+        redirectRes.cookies.delete(SESSION_COOKIE_NAME);
+      }
+      return redirectRes;
     }
-
-    try {
-      // Validar token criptográficamente en memoria (<0.5ms)
-      await jwtVerify(token, JWT_SECRET);
-      return NextResponse.next();
-    } catch {
-      // Token expirado o alterado
-      const loginUrl = new URL("/login", req.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
-      const res = NextResponse.redirect(loginUrl);
-      res.cookies.delete(SESSION_COOKIE_NAME);
-      return res;
-    }
+    return response;
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

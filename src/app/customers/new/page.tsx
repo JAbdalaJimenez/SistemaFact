@@ -27,6 +27,7 @@ export default function NewCustomerPage() {
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orgInfo, setOrgInfo] = useState({ name: "ElectroCba", signer: "Instalador Habilitado" });
@@ -62,6 +63,7 @@ export default function NewCustomerPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
+    setSubmitError(null);
 
     // Validación cliente con Zod
     const result = customerSchema.safeParse(formData);
@@ -83,16 +85,28 @@ export default function NewCustomerPage() {
         body: JSON.stringify(formData),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        throw new Error(data.error || "Error al crear comitente");
+        let msg = data?.error || "Error al registrar el comitente en la base de datos.";
+        if (res.status === 401) {
+          msg = "Sesión no autenticada. Inicie sesión nuevamente para registrar clientes.";
+        } else if (res.status === 403 || msg.includes("RLS") || msg.includes("row-level") || msg.includes("42501")) {
+          msg = "Error de políticas de seguridad (RLS): Supabase no autorizó la inserción. Verifique las políticas de la tabla 'customers'.";
+        }
+        throw new Error(msg);
       }
 
       setSuccess(true);
-      router.push("/customers");
-      router.refresh();
+      // Breve transición antes de redirigir para confirmar la persistencia
+      setTimeout(() => {
+        router.push("/customers");
+        router.refresh();
+      }, 400);
     } catch (err: unknown) {
-      alert(String(err));
+      console.error("[CustomerNew] Error al crear comitente:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(msg);
       setLoading(false);
     }
   };
@@ -130,6 +144,18 @@ export default function NewCustomerPage() {
           <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center space-x-3 text-[#166534] text-xs font-semibold">
             <CheckCircle2 className="w-4 h-4 text-[#166534] shrink-0" strokeWidth={1.5} />
             <span>Comitente registrado con éxito. Redirigiendo al directorio...</span>
+          </div>
+        )}
+
+        {submitError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start space-x-3 text-red-700 text-xs font-medium">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" strokeWidth={1.5} />
+            <div className="flex-1">
+              <p className="font-semibold">{submitError}</p>
+              <p className="mt-1 text-[11px] text-red-500">
+                Si las cuentas se crean pero los datos no persisten, verifique las políticas de Row Level Security (RLS) en Supabase para la tabla `customers`.
+              </p>
+            </div>
           </div>
         )}
 

@@ -29,6 +29,10 @@
   }
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   color: #0B132B;
   background-color: #F8FAFC;
@@ -36,6 +40,49 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1, "cv02", "cv03", "cv04", "cv11";
   -webkit-tap-highlight-color: transparent;
   font-weight: 400;
+}
+
+/* Suavizado global de transiciones en elementos interactivos */
+a, button, input, select, textarea, [role="button"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/* Suavizado en tarjetas y contenedores */
+.bg-white, .rounded-2xl, .rounded-xl {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animaciones suaves para la entrada de componentes en la UI */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Números tabulares para columnas de importes, fechas y códigos técnicos */
@@ -62,24 +109,16 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 9999px;
+  transition: background-color 0.2s ease;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Interacción táctil y de clics 100% instantánea sin demora */
-a, button, [role="button"] {
-  touch-action: manipulation;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-}
-
 /* Aceleración por hardware para transiciones fluidas */
 .fast-transition {
-  transition: transform 75ms ease, opacity 75ms ease;
-  will-change: transform;
+  transition: transform 150ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
 }
 
 /* Soporte para iPhone con Dynamic Island / Home Indicator (PWA Standalone) */
@@ -91,9 +130,21 @@ a, button, [role="button"] {
   padding-top: max(0.5rem, env(safe-area-inset-top));
 }
 
-/* Evitar el rebote elástico en móviles para que se sienta como app nativa */
+/* Evitar el rebote elástico brusco en móviles para que se sienta como app nativa */
 html, body {
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
 }
 
+/* Accesibilidad para usuarios con preferencia de reducción de movimiento */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

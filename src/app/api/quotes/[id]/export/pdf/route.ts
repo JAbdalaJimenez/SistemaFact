@@ -11,6 +11,10 @@ export async function GET(req: NextRequest, { params }: Props) {
   try {
     const { id } = await params;
 
+    if (!id || id === "undefined" || id === "null") {
+      return NextResponse.json({ error: "Identificador de presupuesto inválido" }, { status: 400 });
+    }
+
     // Buscar presupuesto por ID o por token público
     let quote: any = null;
 
@@ -49,8 +53,20 @@ export async function GET(req: NextRequest, { params }: Props) {
       quote.organization = await getOrganization(quote.organizationId);
     }
 
+    if (!quote.customer) {
+      quote.customer = {
+        name: "Comitente General",
+        phone: "No informado",
+        address: "Córdoba Capital",
+        neighborhood: "Centro",
+      };
+    }
+
     const pdfBytes = await generateQuotePdf(quote);
-    const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
+    const safeId = quote.id ? String(quote.id) : "000000";
+    const quoteNum =
+      quote.quoteNumber ||
+      `EC-${safeId.length >= 6 ? safeId.slice(-6).toUpperCase() : safeId.toUpperCase()}`;
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
