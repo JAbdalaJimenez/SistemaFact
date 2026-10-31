@@ -8,6 +8,7 @@ import {
 import { getQuotes, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { formatCurrencyARS, formatPhoneForWhatsApp } from "@/lib/types";
+import { ConvertQuoteButton } from "@/components/convert-quote-button";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -137,7 +138,13 @@ export default async function QuotesListPage() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <ConvertQuoteButton
+                      quoteId={q.id}
+                      isConverted={isApproved}
+                      existingJobId={(q as any).job?.id || null}
+                    />
+
                     <a
                       href={waUrl}
                       target="_blank"

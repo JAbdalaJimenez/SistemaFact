@@ -42,7 +42,7 @@ function CheckoutMockContent() {
     setLoading(true);
     try {
       // Llamar al webhook interno para acreditar el pago
-      await fetch("/api/payments/webhook", {
+      const res = await fetch("/api/payments/webhook", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -61,8 +61,11 @@ function CheckoutMockContent() {
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+      const resolvedJobId = data?.jobId || jobId;
+
       // Redirigir a pantalla de confirmación exitosa
-      router.push(`/payments/status?status=approved&jobId=${jobId}&quoteId=${quoteId}&amount=${amount}`);
+      router.push(`/payments/status?status=approved&jobId=${resolvedJobId}&quoteId=${quoteId}&amount=${amount}`);
     } catch (e) {
       console.error(e);
       alert("Hubo un inconveniente al procesar el pago");

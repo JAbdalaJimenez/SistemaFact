@@ -87,7 +87,7 @@ export const STANDARD_LEGAL_CLAUSES = getDynamicLegalClauses();
 
 export const manualPaymentSchema = z.object({
   jobId: z.string().min(1, "JobId requerido"),
-  amount: z.number().int().positive("El monto debe ser mayor a 0"),
+  amount: z.coerce.number().positive("El monto debe ser mayor a 0").transform((v) => Math.round(v)),
   paymentMethod: z.enum(["CASH", "TRANSFER", "MERCADO_PAGO"]),
   notes: z.string().optional(),
 });

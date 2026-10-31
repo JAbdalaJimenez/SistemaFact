@@ -31,11 +31,18 @@ export default async function JobDetailPage({ params }: Props) {
     notFound();
   }
 
-  const totalPaid = job.totalAmount - job.balanceDue;
-  const paidPercentage = Math.min(
-    100,
-    Math.round((totalPaid / job.totalAmount) * 100)
-  );
+  const totalAmount = Number(job.totalAmount) || 0;
+  const balanceDue = Number(job.balanceDue) || 0;
+  const totalPaid = Math.max(0, totalAmount - balanceDue);
+  const paidPercentage =
+    totalAmount > 0
+      ? Math.min(100, Math.round((totalPaid / totalAmount) * 100))
+      : 100;
+
+  const customerName = job.customer?.name || "Comitente";
+  const customerAddress = job.customer?.address || "Domicilio en obra";
+  const customerNeighborhood = job.customer?.neighborhood || "Córdoba";
+  const customerPhone = job.customer?.phone || "Sin teléfono";
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -61,7 +68,7 @@ export default async function JobDetailPage({ params }: Props) {
             Orden de Trabajo Eléctrica
           </span>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
-            {job.title}
+            {job.title || "Orden de Trabajo Eléctrica"}
           </h1>
         </div>
 
@@ -69,10 +76,10 @@ export default async function JobDetailPage({ params }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
           <div>
             <span className="text-[10px] font-bold uppercase text-slate-400">Cliente</span>
-            <p className="text-sm font-extrabold text-slate-900 mt-0.5">{job.customer.name}</p>
+            <p className="text-sm font-extrabold text-slate-900 mt-0.5">{customerName}</p>
             <p className="flex items-center gap-1 mt-1 text-slate-500">
               <MapPin className="w-3.5 h-3.5 shrink-0" />
-              <span>{job.customer.address} • {job.customer.neighborhood}</span>
+              <span>{customerAddress} • {customerNeighborhood}</span>
             </p>
           </div>
 
@@ -80,7 +87,7 @@ export default async function JobDetailPage({ params }: Props) {
             <span className="text-[10px] font-bold uppercase text-slate-400">Contacto & Teléfono</span>
             <p className="flex items-center gap-1 mt-1 text-slate-700 font-semibold">
               <Phone className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-              <span>{job.customer.phone}</span>
+              <span>{customerPhone}</span>
             </p>
             {job.scheduledDate && (
               <p className="flex items-center gap-1 mt-1 text-slate-500">
@@ -101,10 +108,17 @@ export default async function JobDetailPage({ params }: Props) {
 
       {/* COMPONENTE INTERACTIVO DE GESTIÓN DE ESTADO, PAGOS Y MERCADO PAGO */}
       <JobDetailsClient
-        job={job}
+        job={{
+          id: job.id,
+          title: job.title || "Orden de Trabajo Eléctrica",
+          customer: {
+            name: customerName,
+            phone: customerPhone,
+          },
+        }}
         initialStatus={job.status}
-        initialBalanceDue={job.balanceDue}
-        totalAmount={job.totalAmount}
+        initialBalanceDue={balanceDue}
+        totalAmount={totalAmount}
         totalPaid={totalPaid}
         initialPayments={job.payments || []}
       />

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobById, getQuotes, getOrganization } from "@/lib/services";
+import { getJobById, getOrganization } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { createPreference, generateWhatsAppLink } from "@/lib/mercadopago";
+import prisma from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,30 +23,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const org = await getOrganization();
+    const session = await getSession();
+    let orgId = session?.organizationId;
     let title = "Servicio Eléctrico ElectroCba";
     let customerName = "Cliente";
     let customerPhone = "+5493510000000";
-    let customerEmail = "cliente@electrocba.com.ar";
+    const customerEmail = "cliente@electrocba.com.ar";
 
     if (jobId) {
       const job = await getJobById(jobId);
       if (!job) {
         return NextResponse.json({ error: "Trabajo no encontrado" }, { status: 404 });
       }
-      title = `Saldo - ${job.title}`;
-      customerName = job.customer.name;
-      customerPhone = job.customer.phone;
+      orgId = job.organizationId || orgId;
+      title = `Saldo - ${job.title || "Trabajo Eléctrico"}`;
+      customerName = job.customer?.name || "Cliente";
+      customerPhone = job.customer?.phone || "+5493510000000";
     } else if (quoteId) {
-      const quotes = await getQuotes();
-      const quote = quotes.find((q) => q.id === quoteId);
+      const quote = await prisma.quote.findUnique({
+        where: { id: quoteId },
+        include: { customer: true },
+      }).catch(() => null);
       if (!quote) {
         return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
       }
+      orgId = quote.organizationId || orgId;
       title = `Seña 50% - ${quote.title || "Trabajo Eléctrico"}`;
-      customerName = quote.customer.name;
-      customerPhone = quote.customer.phone;
+      customerName = quote.customer?.name || "Cliente";
+      customerPhone = quote.customer?.phone || "+5493510000000";
     }
+
+    const org = await getOrganization(orgId);
 
     const prefResult = await createPreference({
       title,

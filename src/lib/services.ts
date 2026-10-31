@@ -600,6 +600,9 @@ export async function getQuotes(orgId: string = DEFAULT_ORG_ID) {
         include: {
           customer: true,
           items: true,
+          job: {
+            select: { id: true, status: true },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
@@ -608,19 +611,23 @@ export async function getQuotes(orgId: string = DEFAULT_ORG_ID) {
       const filtered = targetId
         ? fallbackStore.quotes.filter((q) => q.organizationId === targetId)
         : fallbackStore.quotes;
-      return filtered.map((q) => ({
-        ...q,
-        customer: fallbackStore.customers.find((c) => c.id === q.customerId) || {
-          id: q.customerId,
-          name: "Cliente",
-          phone: "+5493510000000",
-          address: "Córdoba",
-          neighborhood: "Córdoba",
-        },
-        createdAt: new Date(q.createdAt),
-        updatedAt: new Date(q.createdAt),
-        expiresAt: new Date(Date.now() + 15 * 86400000),
-      }));
+      return filtered.map((q) => {
+        const foundJob = fallbackStore.jobs.find((j) => j.quoteId === q.id);
+        return {
+          ...q,
+          job: foundJob ? { id: foundJob.id, status: foundJob.status } : null,
+          customer: fallbackStore.customers.find((c) => c.id === q.customerId) || {
+            id: q.customerId,
+            name: "Cliente",
+            phone: "+5493510000000",
+            address: "Córdoba",
+            neighborhood: "Córdoba",
+          },
+          createdAt: new Date(q.createdAt),
+          updatedAt: new Date(q.createdAt),
+          expiresAt: new Date(Date.now() + 15 * 86400000),
+        };
+      });
     }
   );
 }

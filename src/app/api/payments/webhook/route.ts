@@ -46,13 +46,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Si es un pago aprobado y tenemos jobId o quoteId
+    let finalJobId = jobId;
     if (status === "approved" || status === "accredited") {
       let targetJobId = jobId;
+      let targetOrgId = org.id;
 
       // Si el pago proviene de la seña de un presupuesto, lo convertimos a Job
       if (!targetJobId && quoteId) {
         const job = await convertQuoteToJob(quoteId);
-        targetJobId = job.id;
+        if (job) {
+          targetJobId = job.id;
+          finalJobId = job.id;
+          targetOrgId = job.organizationId || targetOrgId;
+        }
+      } else if (targetJobId) {
+        const existingJob = await getJobById(targetJobId);
+        if (existingJob?.organizationId) {
+          targetOrgId = existingJob.organizationId;
+        }
       }
 
       if (targetJobId && amount > 0) {
@@ -63,9 +74,9 @@ export async function POST(req: NextRequest) {
             });
 
             if (!existingPayment) {
-              await recordPayment(org.id, {
+              await recordPayment(targetOrgId, {
                 jobId: targetJobId,
-                amount,
+                amount: Math.round(amount),
                 paymentMethod: "MERCADO_PAGO",
                 mpPaymentId: dataId,
                 notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
@@ -73,18 +84,18 @@ export async function POST(req: NextRequest) {
               console.log(`[MercadoPago Webhook] Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
             }
           } catch {
-            await recordPayment(org.id, {
+            await recordPayment(targetOrgId, {
               jobId: targetJobId,
-              amount,
+              amount: Math.round(amount),
               paymentMethod: "MERCADO_PAGO",
               mpPaymentId: dataId,
               notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
             });
           }
         } else {
-          await recordPayment(org.id, {
+          await recordPayment(targetOrgId, {
             jobId: targetJobId,
-            amount,
+            amount: Math.round(amount),
             paymentMethod: "MERCADO_PAGO",
             mpPaymentId: dataId,
             notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
@@ -97,6 +108,7 @@ export async function POST(req: NextRequest) {
       received: true,
       processed: true,
       dataId,
+      jobId: finalJobId || undefined,
     });
   } catch (error: unknown) {
     console.error("Error al procesar webhook de Mercado Pago:", error);
