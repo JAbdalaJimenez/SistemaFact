@@ -29,9 +29,8 @@ import {
   StoredBiometricProfile,
 } from "@/lib/webauthn";
 
-const supabase = createClient();
-
 function LoginContent() {
+  const supabase = createClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [callbackUrl, setCallbackUrl] = useState("/dashboard");

@@ -334,3 +334,4 @@ export function SignatureCanvas({
     </div>
   );
 }
+

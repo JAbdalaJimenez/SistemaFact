@@ -49,9 +49,10 @@ export default async function DashboardPage() {
 
             <div className="flex items-center gap-3.5 pt-1">
               <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 shadow-inner overflow-hidden">
-                <Image
-                  src={(org as any).logoUrl || "/logo-icon.png"}
-                  alt={org.name}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={(org as any)?.logoUrl || "/logo-icon.png"}
+                  alt={org?.name || "ElectroCba"}
                   width={40}
                   height={40}
                   className="w-full h-full object-contain"

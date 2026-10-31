@@ -25,7 +25,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabase] = useState(() => createClient());
+  const [supabase] = useState(() => {
+    try {
+      return createClient();
+    } catch (e) {
+      console.warn("[Auth] Fallback client initialization:", e);
+      return null;
+    }
+  });
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,12 +41,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 1. Hidratación inicial e inscripción a onAuthStateChange para persistencia de sesión
   useEffect(() => {
     let isMounted = true;
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
 
     async function initAuth() {
       try {
         // Recuperar sesión activa inicial (al recargar la página F5)
         const { data: { session: initialSession }, error: sessionError } =
-          await supabase.auth.getSession();
+          await supabase!.auth.getSession();
 
         if (sessionError) {
           console.warn("[Auth] Error al recuperar sesión inicial:", sessionError.message);
@@ -61,41 +72,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
 
     // 2. Suscripción en tiempo real a los cambios de estado de autenticación
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, currentSession: Session | null) => {
-      if (!isMounted) return;
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      const subResult = supabase.auth.onAuthStateChange(
+        async (event: AuthChangeEvent, currentSession: Session | null) => {
+          if (!isMounted) return;
 
-      setSession(currentSession);
-      setUser(currentSession?.user ?? null);
-      setLoading(false);
+          setSession(currentSession);
+          setUser(currentSession?.user ?? null);
+          setLoading(false);
 
-      if (event === "SIGNED_IN") {
-        setError(null);
-        try {
-          if (currentSession?.user) {
-            sessionStorage.setItem("supabase_user", JSON.stringify(currentSession.user));
+          if (event === "SIGNED_IN") {
+            setError(null);
+            try {
+              if (currentSession?.user) {
+                sessionStorage.setItem("supabase_user", JSON.stringify(currentSession.user));
+              }
+            } catch {}
+          } else if (event === "SIGNED_OUT") {
+            try {
+              sessionStorage.removeItem("supabase_user");
+              sessionStorage.removeItem("electrocba_user");
+            } catch {}
           }
-        } catch {}
-      } else if (event === "SIGNED_OUT") {
-        try {
-          sessionStorage.removeItem("supabase_user");
-          sessionStorage.removeItem("electrocba_user");
-        } catch {}
-      } else if (event === "TOKEN_REFRESHED") {
-        // Token renovado exitosamente por Supabase
-      }
-    });
+        }
+      );
+      subscription = subResult.data.subscription;
+    } catch (e) {
+      console.warn("[Auth] onAuthStateChange no disponible:", e);
+    }
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      subscription?.unsubscribe();
     };
   }, [supabase]);
 
   // Inicio de sesión con Supabase Auth
   const signInWithPassword = useCallback(
     async (email: string, password: string) => {
+      if (!supabase) return { error: null };
       setError(null);
       setLoading(true);
       try {
@@ -125,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Registro de usuario en Supabase Auth
   const signUp = useCallback(
     async (email: string, password: string, metadata?: Record<string, any>) => {
+      if (!supabase) return { error: null, user: null };
       setError(null);
       setLoading(true);
       try {
@@ -158,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setLoading(true);
     try {
-      await supabase.auth.signOut();
+      await supabase?.auth.signOut();
       try {
         sessionStorage.clear();
         localStorage.removeItem("electrocba_user");
@@ -174,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Refrescar manualmente la sesión
   const refreshSession = useCallback(async () => {
+    if (!supabase) return;
     const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
     setSession(refreshedSession);
     setUser(refreshedSession?.user ?? null);

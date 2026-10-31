@@ -82,7 +82,8 @@ export default async function PublicQuotePage({ params }: Props) {
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
-                  <Image
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
                     src={quote.organization?.logoUrl || "/logo-icon.png"}
                     alt={orgName}
                     width={44}
