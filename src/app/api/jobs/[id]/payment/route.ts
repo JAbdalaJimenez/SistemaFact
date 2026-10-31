@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordPayment, getOrganization } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { manualPaymentSchema } from "@/lib/types";
 
 interface Props {
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       jobId: id,
     });
 
-    const org = await getOrganization();
+    const session = await getSession();
+    const org = await getOrganization(session?.organizationId);
     const result = await recordPayment(org.id, validated);
 
     return NextResponse.json({ success: true, ...result });

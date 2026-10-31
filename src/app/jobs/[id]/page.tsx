@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getJobById } from "@/lib/services";
+import { getSession } from "@/lib/auth";
 import { formatCurrencyARS, formatPhoneForWhatsApp, formatDate } from "@/lib/types";
 import { JobDetailsClient } from "./client";
 import {
@@ -15,15 +16,18 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 interface Props {
   params: Promise<{ id: string }>;
 }
 
 export default async function JobDetailPage({ params }: Props) {
   const { id } = await params;
-  const job = await getJobById(id);
+  const [job, session] = await Promise.all([getJobById(id), getSession()]);
 
-  if (!job) {
+  if (!job || (session?.organizationId && job.organizationId !== session.organizationId && session.role !== "SUPERADMIN")) {
     notFound();
   }
 

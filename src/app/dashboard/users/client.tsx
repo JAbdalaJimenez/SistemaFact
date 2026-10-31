@@ -52,7 +52,7 @@ export function UsersManagerClient({ currentUser, initialUsers = [] }: Props) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"SUPERADMIN" | "OWNER" | "MEMBER">("MEMBER");
+  const [role, setRole] = useState<"SUPERADMIN" | "OWNER" | "MEMBER">("OWNER");
   const [phone, setPhone] = useState("+54 9 351 ");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -350,8 +350,8 @@ export function UsersManagerClient({ currentUser, initialUsers = [] }: Props) {
                   onChange={(e) => setRole(e.target.value as any)}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-semibold text-[#0B132B] bg-white"
                 >
-                  <option value="MEMBER">Técnico Ayudante (MEMBER) - Vista operativa de obras</option>
-                  <option value="OWNER">Instalador Titular (OWNER) - Emite presupuestos y cobra</option>
+                  <option value="OWNER">Instalador Titular (OWNER) - Cuenta propia e independiente</option>
+                  <option value="MEMBER">Técnico Independiente (MEMBER) - Cuenta propia operativa</option>
                   <option value="SUPERADMIN">Superadministrador (SUPERADMIN) - Control total y gestión de usuarios</option>
                 </select>
               </div>

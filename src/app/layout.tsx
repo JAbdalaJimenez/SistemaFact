@@ -34,6 +34,8 @@ export const viewport: Viewport = {
   themeColor: "#0B132B",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -51,12 +53,12 @@ export default async function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body
-        className="min-h-screen bg-[#F8FAFC] text-[#0B132B] antialiased flex flex-col font-sans select-none"
+        className="min-h-screen bg-[#F8FAFC] text-[#0B132B] antialiased flex flex-col font-sans"
         suppressHydrationWarning
       >
         <AuthProvider>
           <AppNavigation initialUser={session} />
-          <main className="flex-1 pb-24 sm:pb-12 max-w-5xl w-full mx-auto p-4 sm:p-6">
+          <main className="flex-1 pb-24 sm:pb-12 max-w-5xl w-full mx-auto p-4 sm:p-6 animate-fade-in">
             {children}
           </main>
         </AuthProvider>

@@ -48,7 +48,7 @@ export default function SettingsPage() {
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    fetch("/api/organization")
+    fetch("/api/organization", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data?.organization) {

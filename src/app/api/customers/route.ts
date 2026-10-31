@@ -5,6 +5,8 @@ import { customerSchema } from "@/lib/types";
 import { createClient } from "@/utils/supabase/server";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     let orgId: string | undefined;
@@ -28,7 +30,9 @@ export async function GET() {
     }
 
     const customers = await getCustomers(orgId);
-    return NextResponse.json(customers);
+    return NextResponse.json(customers, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error: any) {
     console.error("[API Customers GET] Error:", error);
     const msg = error?.message || String(error);

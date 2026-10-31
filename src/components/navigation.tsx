@@ -46,7 +46,7 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
 
   useEffect(() => {
     // Sincronizar siempre con el endpoint de sesión para evitar datos viejos en sessionStorage
-    fetch("/api/auth/me")
+    fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => {
         if (res.ok) return res.json();
         return null;

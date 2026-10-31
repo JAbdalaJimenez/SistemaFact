@@ -45,12 +45,36 @@ export async function verifySessionToken(token: string): Promise<SessionUser | n
 
 /**
  * Obtiene la sesión actual desde las cookies en Server Components / Server Actions
+ * y sincroniza el organizationId con la base de datos si el usuario fue migrado o actualizado.
  */
 export async function getSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
-  return await verifySessionToken(token);
+  const session = await verifySessionToken(token);
+  if (!session) return null;
+
+  // Si es una cuenta en PostgreSQL, verificar su organizationId actual para evitar tokens viejos
+  if (session.id && session.id !== "user_superadmin_root" && !session.id.startsWith("user_")) {
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.id },
+        select: { organizationId: true, role: true, organization: { select: { name: true, ersepLicenseNumber: true, ersepLicense: true } } },
+      });
+      if (dbUser) {
+        session.organizationId = dbUser.organizationId;
+        session.role = dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER";
+        if (dbUser.organization) {
+          session.organizationName = dbUser.organization.name;
+          session.ersepLicense = dbUser.organization.ersepLicenseNumber || dbUser.organization.ersepLicense || session.ersepLicense;
+        }
+      }
+    } catch {
+      // Continuar con los datos del token si hubiera latencia puntual
+    }
+  }
+
+  return session;
 }
 
 /**

@@ -308,13 +308,20 @@ export async function getOrganization(orgId: string = DEFAULT_ORG_ID) {
 
   const org = await tryPrisma(
     async () => {
-      let found = await prisma.organization.findUnique({ where: { id: targetId } });
-      if (!found) {
-        found = await prisma.organization.findFirst();
-      }
-      return found || (fallbackStore.orgs[targetId] || fallbackStore.org);
+      const found = await prisma.organization.findUnique({ where: { id: targetId } });
+      if (found) return found;
+      return (
+        fallbackStore.orgs[targetId] || {
+          ...fallbackStore.org,
+          id: targetId,
+        }
+      );
     },
-    () => (fallbackStore.orgs[targetId] || fallbackStore.org)
+    () =>
+      fallbackStore.orgs[targetId] || {
+        ...fallbackStore.org,
+        id: targetId,
+      }
   );
 
   cachedOrgs.set(targetId, { org: org as InMemOrg, time: Date.now() });
@@ -331,11 +338,7 @@ export async function updateOrganization(
 
   return tryPrisma(
     async () => {
-      let org = await prisma.organization.findUnique({ where: { id: targetId } });
-      if (!org) {
-        org = await prisma.organization.findFirst();
-      }
-      const actualId = org ? org.id : targetId;
+      const actualId = targetId;
 
       const updated = await prisma.organization.upsert({
         where: { id: actualId },
@@ -1070,6 +1073,7 @@ export async function createUser(data: {
   role?: "SUPERADMIN" | "OWNER" | "MEMBER";
   phone?: string;
   organizationId?: string;
+  shareCurrentOrg?: boolean;
 }) {
   const normalizedEmail = data.email.toLowerCase().trim();
   const hashedPassword = bcrypt.hashSync(data.password, 10);
@@ -1085,7 +1089,8 @@ export async function createUser(data: {
       }
 
       let assignedOrgId = targetOrgId;
-      if (data.role === "OWNER") {
+      // Por defecto cada nueva cuenta tiene su propia organización aislada para no cruzar datos
+      if (!data.shareCurrentOrg) {
         const newOrg = await prisma.organization.create({
           data: {
             name: `${data.name.trim()} - Instalaciones`,
@@ -1114,7 +1119,7 @@ export async function createUser(data: {
           name: data.name.trim(),
           email: normalizedEmail,
           password: hashedPassword,
-          role: data.role || "MEMBER",
+          role: data.role || "OWNER",
           phone: data.phone?.trim(),
           organizationId: assignedOrgId,
         },
@@ -1141,7 +1146,7 @@ export async function createUser(data: {
       }
 
       let assignedOrgId = targetOrgId;
-      if (data.role === "OWNER") {
+      if (!data.shareCurrentOrg) {
         assignedOrgId = `org_${randomUUID().slice(0, 8)}`;
         fallbackStore.orgs[assignedOrgId] = {
           id: assignedOrgId,

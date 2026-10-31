@@ -7,7 +7,7 @@ const createUserSchema = z.object({
   name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
   email: z.string().email("Correo electrónico inválido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  role: z.enum(["SUPERADMIN", "OWNER", "MEMBER"]).default("MEMBER"),
+  role: z.enum(["SUPERADMIN", "OWNER", "MEMBER"]).default("OWNER"),
   phone: z.string().optional(),
 });
 

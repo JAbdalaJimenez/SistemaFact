@@ -256,7 +256,7 @@ function QuoteWizardContent() {
     setOrigin(window.location.origin);
 
     // Cargar perfil del instalador
-    fetch("/api/organization")
+    fetch("/api/organization", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data?.organization) {
@@ -273,7 +273,7 @@ function QuoteWizardContent() {
       .catch(() => {});
 
     // Cargar comitentes
-    fetch("/api/customers")
+    fetch("/api/customers", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) {

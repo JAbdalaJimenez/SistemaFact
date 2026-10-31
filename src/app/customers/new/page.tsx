@@ -33,7 +33,7 @@ export default function NewCustomerPage() {
   const [orgInfo, setOrgInfo] = useState({ name: "ElectroCba", signer: "Instalador Habilitado" });
 
   useEffect(() => {
-    fetch("/api/organization")
+    fetch("/api/organization", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data?.organization) {

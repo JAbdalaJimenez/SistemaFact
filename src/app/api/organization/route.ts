@@ -5,6 +5,8 @@ import { organizationSettingsSchema } from "@/lib/types";
 
 const DEFAULT_ORG_ID = "org_electrocba_cba01";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getSession();
@@ -54,6 +56,8 @@ export async function GET() {
         logoUrl: safeOrg.logoUrl || "/logo-icon.png",
         email: safeOrg.email || "",
       },
+    }, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
     });
   } catch (error) {
     console.error("Error al obtener organización:", error);

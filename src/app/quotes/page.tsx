@@ -9,6 +9,7 @@ import { getQuotes, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { formatCurrencyARS, formatPhoneForWhatsApp } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function QuotesListPage() {

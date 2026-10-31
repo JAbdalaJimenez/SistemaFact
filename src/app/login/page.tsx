@@ -92,11 +92,10 @@ function LoginContent() {
           sessionStorage.setItem("electrocba_user", JSON.stringify(res.user));
         } catch {}
 
-        // Breve animación de éxito y redirección
+        // Breve animación de éxito y redirección limpia sin caché de otra cuenta
         setTimeout(() => {
-          router.push(callbackUrl);
-          router.refresh();
-        }, 500);
+          window.location.href = callbackUrl;
+        }, 400);
       }
     } catch (err: unknown) {
       const msg = String(err).replace("Error: ", "");
@@ -185,9 +184,8 @@ function LoginContent() {
         return;
       }
 
-      // Si ya está registrado o el dispositivo no soporta biometría, redirigir
-      router.push(callbackUrl);
-      router.refresh();
+      // Si ya está registrado o el dispositivo no soporta biometría, redirigir limpiando caché RSC
+      window.location.href = callbackUrl;
     } catch (err: unknown) {
       setError(String(err).replace("Error: ", ""));
       setLoading(false);
@@ -205,14 +203,12 @@ function LoginContent() {
       setSavedProfile(profile);
       setShowOfferModal(false);
       // Redirigir al dashboard con éxito
-      router.push(callbackUrl);
-      router.refresh();
+      window.location.href = callbackUrl;
     } catch (err: unknown) {
       console.warn("Registro biométrico omitido o cancelado:", err);
       // Si cancela, igual ya está logueado por contraseña, así que redirigir
       setShowOfferModal(false);
-      router.push(callbackUrl);
-      router.refresh();
+      window.location.href = callbackUrl;
     } finally {
       setRegisteringBiometrics(false);
     }
@@ -221,8 +217,7 @@ function LoginContent() {
   // Omitir registro de sensor biométrico y continuar al dashboard
   const handleSkipRegisterBiometrics = () => {
     setShowOfferModal(false);
-    router.push(callbackUrl);
-    router.refresh();
+    window.location.href = callbackUrl;
   };
 
   return (

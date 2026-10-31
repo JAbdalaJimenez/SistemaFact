@@ -3,12 +3,16 @@ import { getQuotes, createQuote, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { quoteCreateSchema } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const session = await getSession();
     const orgId = session?.organizationId;
     const quotes = await getQuotes(orgId);
-    return NextResponse.json(quotes);
+    return NextResponse.json(quotes, {
+      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

@@ -31,6 +31,8 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
 }
 
 body {
@@ -40,49 +42,69 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1, "cv02", "cv03", "cv04", "cv11";
   -webkit-tap-highlight-color: transparent;
   font-weight: 400;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Suavizado global de transiciones en elementos interactivos */
-a, button, input, select, textarea, [role="button"] {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+/* Suavizado global de transiciones en elementos interactivos sin bloquear el scroll */
+a, button, [role="button"] {
+  transition:
+    background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    color 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease;
   touch-action: manipulation;
   cursor: pointer;
 }
 
-/* Suavizado en tarjetas y contenedores */
+input, select, textarea {
+  transition:
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  touch-action: manipulation;
+}
+
+/* Suavizado en tarjetas y contenedores con aceleración GPU */
 .bg-white, .rounded-2xl, .rounded-xl {
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Animaciones suaves para la entrada de componentes en la UI */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translate3d(0, 8px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* Números tabulares para columnas de importes, fechas y códigos técnicos */
@@ -130,9 +152,9 @@ a, button, input, select, textarea, [role="button"] {
   padding-top: max(0.5rem, env(safe-area-inset-top));
 }
 
-/* Evitar el rebote elástico brusco en móviles para que se sienta como app nativa */
+/* Desplazamiento nativo con inercia fluida en móviles y trackpads */
 html, body {
-  overscroll-behavior-y: none;
+  overscroll-behavior-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 

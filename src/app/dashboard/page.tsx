@@ -16,6 +16,7 @@ import { getDashboardMetrics, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { formatCurrencyARS } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0; // Datos frescos en cada solicitud
 
 export default async function DashboardPage() {
