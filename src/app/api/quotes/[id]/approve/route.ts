@@ -61,3 +61,4 @@ export async function POST(req: NextRequest, { params }: Props) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
+

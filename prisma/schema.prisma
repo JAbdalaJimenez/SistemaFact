@@ -68,6 +68,8 @@ model Organization {
   mpAccessToken      String?   // Access Token de Mercado Pago (por tenant)
   mpPublicKey        String?   // Public Key de Mercado Pago (por tenant)
   logoUrl            String?   // URL o path del logotipo profesional
+  signatureUrl       String?   // Firma digital en formato DataURL base64 (PNG transparente)
+  email              String?   // Email profesional de contacto
   currency           String    @default("ARS")
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

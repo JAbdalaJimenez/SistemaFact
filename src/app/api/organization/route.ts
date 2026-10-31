@@ -54,6 +54,7 @@ export async function GET() {
         mpAccessToken: safeOrg.mpAccessToken || "",
         mpPublicKey: safeOrg.mpPublicKey || "",
         logoUrl: safeOrg.logoUrl || "/logo-icon.png",
+        signatureUrl: (safeOrg as any).signatureUrl || "",
         email: safeOrg.email || "",
       },
     }, {
@@ -79,6 +80,7 @@ export async function GET() {
         mpAccessToken: "",
         mpPublicKey: "",
         logoUrl: "/logo-icon.png",
+        signatureUrl: "",
         email: "contacto@electrocba.com.ar",
       },
     });

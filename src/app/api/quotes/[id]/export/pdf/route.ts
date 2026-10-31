@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, { params }: Props) {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="Presupuesto-${quoteNum}.pdf"`,
-        "Cache-Control": "public, max-age=60",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (error) {

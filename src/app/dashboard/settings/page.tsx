@@ -23,6 +23,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { OrganizationSettingsInput } from "@/lib/types";
+import { SignatureCanvas } from "@/components/signature-canvas";
 
 export default function SettingsPage() {
   const [formData, setFormData] = useState<OrganizationSettingsInput>({
@@ -39,6 +40,7 @@ export default function SettingsPage() {
     mpAccessToken: "",
     mpPublicKey: "",
     logoUrl: "/logo-icon.png",
+    signatureUrl: "",
     email: "",
   });
 
@@ -66,6 +68,11 @@ export default function SettingsPage() {
             mpAccessToken: data.organization.mpAccessToken || "",
             mpPublicKey: data.organization.mpPublicKey || "",
             logoUrl: data.organization.logoUrl || "/logo-icon.png",
+            signatureUrl:
+              data.organization.signatureUrl ||
+              (typeof window !== "undefined"
+                ? localStorage.getItem("electrocba_digital_signature") || ""
+                : ""),
             email: data.organization.email || "",
           });
         }
@@ -533,6 +540,20 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* SECCIÓN 6: FIRMA DIGITAL PARA COMPROBANTES Y PRESUPUESTOS PDF */}
+        <SignatureCanvas
+          value={formData.signatureUrl}
+          onChange={(dataUrl) => handleChange("signatureUrl", dataUrl)}
+          onSaveImmediate={async (dataUrl) => {
+            const payload = { ...formData, signatureUrl: dataUrl };
+            await fetch("/api/organization", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+          }}
+        />
 
         {/* BOTÓN INFERIOR DE ACCIÓN */}
         <div className="flex items-center justify-between pt-2">

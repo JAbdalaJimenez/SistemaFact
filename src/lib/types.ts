@@ -35,7 +35,8 @@ export const organizationSettingsSchema = z.object({
   mpAccessToken: z.string().optional().nullable(),
   mpPublicKey: z.string().optional().nullable(),
   logoUrl: z.string().optional().nullable(),
-  email: z.string().email("Email inválido").optional().nullable(),
+  signatureUrl: z.string().optional().nullable(),
+  email: z.string().email("Email inválido").or(z.literal("")).optional().nullable(),
 });
 
 export type OrganizationSettingsInput = z.infer<typeof organizationSettingsSchema>;

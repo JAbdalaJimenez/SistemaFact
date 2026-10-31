@@ -114,6 +114,7 @@ export interface InMemOrg {
   mpAccessToken: string;
   mpPublicKey: string;
   logoUrl: string;
+  signatureUrl?: string;
   currency: string;
   email: string;
 }
@@ -360,6 +361,8 @@ export async function updateOrganization(
           mpAccessToken: data.mpAccessToken,
           mpPublicKey: data.mpPublicKey,
           logoUrl: data.logoUrl,
+          signatureUrl: data.signatureUrl,
+          email: data.email,
         },
         create: {
           id: actualId,
@@ -381,6 +384,8 @@ export async function updateOrganization(
           mpAccessToken: data.mpAccessToken,
           mpPublicKey: data.mpPublicKey,
           logoUrl: data.logoUrl,
+          signatureUrl: data.signatureUrl,
+          email: data.email,
         },
       });
       cachedOrgs.set(actualId, { org: updated as unknown as InMemOrg, time: Date.now() });
