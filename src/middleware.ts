@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { updateSession } from "@/utils/supabase/middleware";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
-);
+function getJwtSecret(): Uint8Array | null {
+  const secret = process.env.JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return secret ? new TextEncoder().encode(secret) : null;
+}
 
 const SESSION_COOKIE_NAME = "electrocba_session";
 
@@ -22,8 +23,11 @@ export async function middleware(req: NextRequest) {
   let hasValidCustomToken = false;
   if (customToken) {
     try {
-      await jwtVerify(customToken, JWT_SECRET);
-      hasValidCustomToken = true;
+      const secret = getJwtSecret();
+      if (secret) {
+        await jwtVerify(customToken, secret);
+        hasValidCustomToken = true;
+      }
     } catch {
       hasValidCustomToken = false;
     }

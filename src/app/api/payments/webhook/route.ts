@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMercadoPagoSignature } from "@/lib/mercadopago";
-import { recordPayment, convertQuoteToJob, getOrganization, getJobById, isDatabaseOnline } from "@/lib/services";
+import { recordPayment, convertQuoteToJob, getJobById } from "@/lib/services";
 import prisma from "@/lib/db";
 
 // Memoria rápida para idempotencia de eventos webhook
@@ -33,13 +33,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Si es un evento simulado o de test que envía detalles en body
     const amount = Number(body?.amount || body?.data?.amount || 0);
     const jobId = body?.jobId || body?.external_reference?.jobId;
     const quoteId = body?.quoteId || body?.external_reference?.quoteId;
     const status = body?.status || "approved";
-
-    const org = await getOrganization();
 
     if (dataId) {
       processedEvents.add(idempotencyKey);
@@ -49,15 +46,14 @@ export async function POST(req: NextRequest) {
     let finalJobId = jobId;
     if (status === "approved" || status === "accredited") {
       let targetJobId = jobId;
-      let targetOrgId = org.id;
+      let targetOrgId = "";
 
-      // Si el pago proviene de la seña de un presupuesto, lo convertimos a Job
       if (!targetJobId && quoteId) {
         const job = await convertQuoteToJob(quoteId);
         if (job) {
           targetJobId = job.id;
           finalJobId = job.id;
-          targetOrgId = job.organizationId || targetOrgId;
+          targetOrgId = job.organizationId;
         }
       } else if (targetJobId) {
         const existingJob = await getJobById(targetJobId);
@@ -66,33 +62,12 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (targetJobId && amount > 0) {
-        if (await isDatabaseOnline()) {
-          try {
-            const existingPayment = await prisma.payment.findFirst({
-              where: { mpPaymentId: dataId },
-            });
+      if (targetJobId && targetOrgId && amount > 0) {
+        const existingPayment = await prisma.payment.findFirst({
+          where: { mpPaymentId: dataId },
+        });
 
-            if (!existingPayment) {
-              await recordPayment(targetOrgId, {
-                jobId: targetJobId,
-                amount: Math.round(amount),
-                paymentMethod: "MERCADO_PAGO",
-                mpPaymentId: dataId,
-                notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
-              });
-              console.log(`[MercadoPago Webhook] Pago de $${amount} registrado exitosamente para Job ${targetJobId}`);
-            }
-          } catch {
-            await recordPayment(targetOrgId, {
-              jobId: targetJobId,
-              amount: Math.round(amount),
-              paymentMethod: "MERCADO_PAGO",
-              mpPaymentId: dataId,
-              notes: `Acreditado vía Webhook Mercado Pago (${eventType})`,
-            });
-          }
-        } else {
+        if (!existingPayment) {
           await recordPayment(targetOrgId, {
             jobId: targetJobId,
             amount: Math.round(amount),
@@ -113,13 +88,12 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error("Error al procesar webhook de Mercado Pago:", error);
     return NextResponse.json(
-      { error: "Error interno en webhook", details: String(error) },
+      { error: "Error interno en webhook" },
       { status: 500 }
     );
   }
 }
 
-// También permitir GET para verificaciones de endpoint que realiza Mercado Pago
 export async function GET() {
   return NextResponse.json({
     status: "ok",

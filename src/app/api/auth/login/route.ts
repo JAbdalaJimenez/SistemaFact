@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, createSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth";
+import bcrypt from "bcryptjs";
+import prisma from "@/lib/db";
+import { createSessionToken, SESSION_COOKIE_NAME, SessionUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,14 +14,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await authenticate(email, password);
+    const normalizedEmail = String(email).toLowerCase().trim();
+    const dbUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      include: { organization: true },
+    });
 
-    if (!user) {
+    if (!dbUser || !dbUser.password) {
       return NextResponse.json(
         { error: "Credenciales inválidas. Verifique su email y contraseña." },
         { status: 401 }
       );
     }
+
+    const isValid = await bcrypt.compare(String(password), dbUser.password);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: "Credenciales inválidas. Verifique su email y contraseña." },
+        { status: 401 }
+      );
+    }
+
+    const user: SessionUser = {
+      id: dbUser.id,
+      name: dbUser.name,
+      email: dbUser.email,
+      role: dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER",
+      organizationId: dbUser.organizationId,
+      organizationName: dbUser.organization.name,
+      ersepLicense:
+        dbUser.organization.ersepLicenseNumber ||
+        dbUser.organization.ersepLicense ||
+        "Matrícula Habilitada ERSeP",
+    };
 
     const token = await createSessionToken(user);
 
@@ -35,7 +62,7 @@ export async function POST(req: NextRequest) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 días
+      maxAge: 60 * 60 * 24 * 7,
     });
 
     return response;

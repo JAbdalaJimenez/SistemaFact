@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getQuotes, getQuoteByPublicToken, getOrganization, isDatabaseOnline } from "@/lib/services";
+import { getOrganization } from "@/lib/services";
 import { generateQuoteDocx } from "@/lib/docx-generator";
 import prisma from "@/lib/db";
 
@@ -15,35 +15,17 @@ export async function GET(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Identificador de presupuesto inválido" }, { status: 400 });
     }
 
-    // Buscar presupuesto por ID o por token público
-    let quote: any = null;
-
-    if (await isDatabaseOnline()) {
-      try {
-        quote = await prisma.quote.findFirst({
-          where: {
-            OR: [{ id }, { publicToken: id }],
-            deletedAt: null,
-          },
-          include: {
-            customer: true,
-            organization: true,
-            items: true,
-          },
-        });
-      } catch {
-        // Fallback
-      }
-    }
-
-    if (!quote) {
-      quote = await getQuoteByPublicToken(id);
-    }
-
-    if (!quote) {
-      const allQuotes = await getQuotes();
-      quote = allQuotes.find((q) => q.id === id || q.publicToken === id);
-    }
+    const quote: any = await prisma.quote.findFirst({
+      where: {
+        OR: [{ id }, { publicToken: id }],
+        deletedAt: null,
+      },
+      include: {
+        customer: true,
+        organization: true,
+        items: true,
+      },
+    });
 
     if (!quote) {
       return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
