@@ -68,6 +68,7 @@ model Organization {
   aliasCbu           String?   // Retrocompatibilidad
   mpAccessToken      String?   // Access Token de Mercado Pago (por tenant)
   mpPublicKey        String?   // Public Key de Mercado Pago (por tenant)
+  mpWebhookSecret    String?   // Secreto de Webhook de Mercado Pago (por tenant, cifrado)
   logoUrl            String?   // URL o path del logotipo profesional
   signatureUrl       String?   // Firma digital en formato DataURL base64 (PNG transparente)
   email              String?   // Email profesional de contacto

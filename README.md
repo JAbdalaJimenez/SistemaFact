@@ -94,7 +94,24 @@ npx tsx scripts/migrate-users-to-supabase.ts --yes
 npx tsx scripts/migrate-users-to-supabase.ts --finalize --yes
 ```
 
-### 6. Iniciar Servidor de Desarrollo
+### 6. Configuración de Pasarela Mercado Pago por Organización
+Cada organización puede configurar sus propias credenciales en `/dashboard/settings`:
+- **Access Token**: Token de producción o prueba de la cuenta de Mercado Pago del instalador.
+- **Public Key**: Clave pública para inicializar componentes en el checkout frontend.
+- **Webhook Secret**: Secreto HMAC de firma de notificaciones provisto por el panel de desarrollador de Mercado Pago para esa app (se almacena cifrado con AES-256-GCM).
+
+En la URL de notificación de Mercado Pago (`notification_url`), el sistema envía `?orgId=<id>` para validar la firma HMAC con el secreto específico de la cuenta receptora.
+
+Para cifrar tokens o secretos existentes que se encuentren en texto plano en la base de datos:
+```bash
+# Simulación sin cambios (dry-run):
+npx tsx scripts/encrypt-existing-mp-tokens.ts
+
+# Ejecución real:
+npx tsx scripts/encrypt-existing-mp-tokens.ts --yes
+```
+
+### 7. Iniciar Servidor de Desarrollo
 ```bash
 npm run dev
 ```

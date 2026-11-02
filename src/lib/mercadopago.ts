@@ -58,6 +58,16 @@ export async function createPreference(
       options: { timeout: 7000 },
     });
     const preference = new Preference(activeClient);
+
+    const payerData: { name?: string; email?: string } = {};
+    if (params.customerName) {
+      payerData.name = params.customerName;
+    }
+    const cleanEmail = params.customerEmail?.trim();
+    if (cleanEmail && cleanEmail.includes("@")) {
+      payerData.email = cleanEmail;
+    }
+
     const res = await preference.create({
       body: {
         items: [
@@ -70,10 +80,7 @@ export async function createPreference(
             currency_id: "ARS",
           },
         ],
-        payer: {
-          name: params.customerName || "Cliente",
-          email: params.customerEmail || "cliente@electrocba.com.ar",
-        },
+        ...(Object.keys(payerData).length > 0 ? { payer: payerData } : {}),
         back_urls: {
           success: `${baseUrl}/payments/status?status=approved&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
           failure: `${baseUrl}/payments/status?status=failure&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
@@ -161,14 +168,16 @@ export async function fetchPaymentFromMercadoPago(
 
 /**
  * Valida la firma HMAC-SHA256 del Webhook de Mercado Pago en tiempo constante.
+ * Acepta el webhook secret específico (de la organización o global).
  * Falla cerrado: si falta el secreto, los headers o el dataId, devuelve `false`.
  */
 export function verifyMercadoPagoSignature(
   xSignature: string | null,
   xRequestId: string | null,
-  dataId: string | null | undefined
+  dataId: string | null | undefined,
+  secretOverride?: string | null
 ): boolean {
-  const secret = env.MERCADO_PAGO_WEBHOOK_SECRET;
+  const secret = secretOverride || env.MERCADO_PAGO_WEBHOOK_SECRET;
   if (!secret || secret === "CHANGE_ME" || secret === "test_webhook_secret_key") {
     return false;
   }

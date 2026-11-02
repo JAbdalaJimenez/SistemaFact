@@ -25,13 +25,21 @@ function isPublicApiRoute(pathname: string): boolean {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const { response, user: supabaseUser, appUser } = await updateSession(req);
+  const { response, user: supabaseUser, appUser, dbError } = await updateSession(req);
   const isAuthenticated = Boolean(supabaseUser && appUser && appUser.organizationId);
 
   // 1. Protección por defecto para todas las rutas /api/* salvo lista blanca mínima
   if (pathname.startsWith("/api/") || pathname === "/api") {
     if (isPublicApiRoute(pathname)) {
       return response;
+    }
+
+    // Ante un error transitorio de base de datos en endpoints de API, devolver 503
+    if (dbError) {
+      return NextResponse.json(
+        { error: "Servicio temporalmente no disponible. Reintente en unos instantes." },
+        { status: 503 }
+      );
     }
 
     if (!isAuthenticated) {
@@ -62,7 +70,8 @@ export async function middleware(req: NextRequest) {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  if (isProtectedPage && !isAuthenticated) {
+  // Ante error transitorio en páginas, dejamos pasar al Server Component para que getSession() decida
+  if (isProtectedPage && !isAuthenticated && !dbError) {
     const loginUrl = new URL("/login", req.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
@@ -72,5 +81,13 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo-icon\\.png).*)"],
+  matcher: [
+    /*
+     * Excluir explícitamente:
+     * - _next/static (archivos estáticos)
+     * - _next/image (optimización de imágenes)
+     * - favicon.ico y archivos con extensiones de assets (png, jpg, jpeg, svg, ico, webp, json, txt, js, css, map)
+     */
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|json|txt|js|css|map)$).*)",
+  ],
 };

@@ -22,6 +22,8 @@ function sanitizeOrganizationResponse(org: Awaited<ReturnType<typeof getOrganiza
     cbuCvu: org.cbuCvu || "",
     mpConfigured: Boolean(org.mpAccessToken),
     mpAccessTokenMasked: maskSecret(org.mpAccessToken),
+    mpWebhookSecretConfigured: Boolean(org.mpWebhookSecret),
+    mpWebhookSecretMasked: maskSecret(org.mpWebhookSecret),
     mpPublicKey: org.mpPublicKey || "",
     logoUrl: org.logoUrl || "/logo-icon.png",
     signatureUrl: org.signatureUrl || "",

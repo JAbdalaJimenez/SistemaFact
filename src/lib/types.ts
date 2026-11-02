@@ -34,6 +34,7 @@ export const organizationSettingsSchema = z.object({
   cbuCvu: z.string().optional().nullable(),
   mpAccessToken: z.string().optional().nullable(),
   mpPublicKey: z.string().optional().nullable(),
+  mpWebhookSecret: z.string().optional().nullable(),
   logoUrl: z.string().optional().nullable(),
   signatureUrl: z.string().optional().nullable(),
   email: z.string().email("Email inválido").or(z.literal("")).optional().nullable(),

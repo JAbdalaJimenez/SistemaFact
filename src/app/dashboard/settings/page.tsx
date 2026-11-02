@@ -34,6 +34,7 @@ export default function SettingsPage() {
     cbuCvu: "",
     mpAccessToken: "",
     mpPublicKey: "",
+    mpWebhookSecret: "",
     logoUrl: "/logo-icon.png",
     signatureUrl: "",
     email: "",
@@ -45,6 +46,8 @@ export default function SettingsPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [mpConfigured, setMpConfigured] = useState(false);
   const [mpAccessTokenMasked, setMpAccessTokenMasked] = useState("");
+  const [mpWebhookConfigured, setMpWebhookConfigured] = useState(false);
+  const [mpWebhookSecretMasked, setMpWebhookSecretMasked] = useState("");
 
   useEffect(() => {
     fetch("/api/organization", { cache: "no-store" })
@@ -53,6 +56,8 @@ export default function SettingsPage() {
         if (data?.organization) {
           setMpConfigured(Boolean(data.organization.mpConfigured));
           setMpAccessTokenMasked(data.organization.mpAccessTokenMasked || "");
+          setMpWebhookConfigured(Boolean(data.organization.mpWebhookSecretConfigured));
+          setMpWebhookSecretMasked(data.organization.mpWebhookSecretMasked || "");
           setFormData({
             name: data.organization.name || "",
             legalName: data.organization.legalName || "",
@@ -66,6 +71,7 @@ export default function SettingsPage() {
             cbuCvu: data.organization.cbuCvu || "",
             mpAccessToken: "",
             mpPublicKey: data.organization.mpPublicKey || "",
+            mpWebhookSecret: "",
             logoUrl: data.organization.logoUrl || "/logo-icon.png",
             signatureUrl:
               data.organization.signatureUrl ||
@@ -119,7 +125,9 @@ export default function SettingsPage() {
       if (data?.organization) {
         setMpConfigured(Boolean(data.organization.mpConfigured));
         setMpAccessTokenMasked(data.organization.mpAccessTokenMasked || "");
-        setFormData((prev) => ({ ...prev, mpAccessToken: "" }));
+        setMpWebhookConfigured(Boolean(data.organization.mpWebhookSecretConfigured));
+        setMpWebhookSecretMasked(data.organization.mpWebhookSecretMasked || "");
+        setFormData((prev) => ({ ...prev, mpAccessToken: "", mpWebhookSecret: "" }));
       }
 
       setSavedSuccess(true);
@@ -509,11 +517,11 @@ export default function SettingsPage() {
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <label className="block font-medium uppercase tracking-wider text-[#0B132B] mb-1 flex items-center gap-1">
                 <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                <span>Mercado Pago Access Token (Opcional por Tenant)</span>
+                <span>Access Token (Por Tenant)</span>
               </label>
               <input
                 type="password"
@@ -521,22 +529,22 @@ export default function SettingsPage() {
                 onChange={(e) => handleChange("mpAccessToken", e.target.value)}
                 placeholder={
                   mpConfigured
-                    ? `Token cifrado activo (${mpAccessTokenMasked}) — ingresar nuevo para reemplazar`
-                    : "APP_USR-... o TEST-... (dejar vacío para usar .env)"
+                    ? `Token activo (${mpAccessTokenMasked})`
+                    : "APP_USR-... o TEST-..."
                 }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-mono text-[#0B132B] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 {mpConfigured
-                  ? `Token almacenado cifrado (${mpAccessTokenMasked}). Dejá este campo vacío para mantener el token actual.`
-                  : "Si no se configura, se utilizará la clave centralizada de las variables de entorno."}
+                  ? `Almacenado cifrado (${mpAccessTokenMasked}). Dejá vacío para mantenerlo.`
+                  : "Token de producción o prueba del comitente."}
               </p>
             </div>
 
             <div>
               <label className="block font-medium uppercase tracking-wider text-[#0B132B] mb-1 flex items-center gap-1">
                 <KeyRound className="w-3.5 h-3.5 text-slate-400" />
-                <span>Mercado Pago Public Key (Opcional por Tenant)</span>
+                <span>Public Key (Por Tenant)</span>
               </label>
               <input
                 type="text"
@@ -547,6 +555,29 @@ export default function SettingsPage() {
               />
               <p className="text-[10px] text-slate-400 mt-1">
                 Clave pública para inicializar componentes en el checkout frontend.
+              </p>
+            </div>
+
+            <div>
+              <label className="block font-medium uppercase tracking-wider text-[#0B132B] mb-1 flex items-center gap-1">
+                <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                <span>Webhook Secret (Por Tenant)</span>
+              </label>
+              <input
+                type="password"
+                value={formData.mpWebhookSecret || ""}
+                onChange={(e) => handleChange("mpWebhookSecret", e.target.value)}
+                placeholder={
+                  mpWebhookConfigured
+                    ? `Secreto activo (${mpWebhookSecretMasked})`
+                    : "Clave secreta de firma webhook"
+                }
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-mono text-[#0B132B] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                {mpWebhookConfigured
+                  ? `Almacenado cifrado (${mpWebhookSecretMasked}). Dejá vacío para mantenerlo.`
+                  : "Secreto HMAC configurado en el panel de Mercado Pago para este tenant."}
               </p>
             </div>
           </div>

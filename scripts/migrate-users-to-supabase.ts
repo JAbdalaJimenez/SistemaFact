@@ -10,6 +10,7 @@
  *   3. Limpieza final de hashes legados (solo usuarios ya vinculados con authUserId):
  *      npx tsx scripts/migrate-users-to-supabase.ts --finalize --yes
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { createClient, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import { randomBytes } from "crypto";

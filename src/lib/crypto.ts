@@ -4,24 +4,37 @@ import { env } from "./env";
 
 const ENCRYPTION_PREFIX = "enc:v1:";
 
-function getAesKey(): Buffer {
+/**
+ * Obtiene el material de clave maestro de 32 bytes.
+ */
+function getMasterKeyMaterial(): Buffer {
   if (env.ENCRYPTION_KEY && /^[0-9a-fA-F]{64}$/.test(env.ENCRYPTION_KEY)) {
     return Buffer.from(env.ENCRYPTION_KEY, "hex");
   }
   if (process.env.NODE_ENV === "production") {
     throw new Error("ENCRYPTION_KEY válida de 64 caracteres hex es obligatoria en producción.");
   }
-  // En desarrollo local sin ENCRYPTION_KEY explícita, derivar 32 bytes determinísticos de SUPABASE_SERVICE_ROLE_KEY
+  // En desarrollo local sin ENCRYPTION_KEY explícita, derivar 32 bytes determinísticos
   return crypto.createHash("sha256").update(env.SUPABASE_SERVICE_ROLE_KEY).digest();
 }
 
-function getHmacKey(): string {
-  const secret = env.MERCADO_PAGO_WEBHOOK_SECRET || env.ENCRYPTION_KEY;
-  if (secret) return secret;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("MERCADO_PAGO_WEBHOOK_SECRET es obligatoria en producción.");
-  }
-  return env.SUPABASE_SERVICE_ROLE_KEY;
+/**
+ * Deriva subclaves independientes mediante HKDF (RFC 5869) usando SHA-256:
+ * - Una para AES-256-GCM (cifrado en reposo).
+ * - Otra para HMAC-SHA256 (firma criptográfica interna de external_reference).
+ */
+function deriveSubkey(info: "electrocba-aes-gcm-key" | "electrocba-hmac-extref-key"): Buffer {
+  const masterKey = getMasterKeyMaterial();
+  const derived = crypto.hkdfSync("sha256", masterKey, Buffer.alloc(0), Buffer.from(info, "utf8"), 32);
+  return Buffer.from(derived);
+}
+
+function getAesKey(): Buffer {
+  return deriveSubkey("electrocba-aes-gcm-key");
+}
+
+function getHmacKey(): Buffer {
+  return deriveSubkey("electrocba-hmac-extref-key");
 }
 
 /**
@@ -96,7 +109,7 @@ export interface SignedExternalRefPayload {
 
 /**
  * Firma criptográficamente el external_reference enviado a Mercado Pago
- * para evitar adulteración de organizationId, jobId, quoteId o monto.
+ * usando la subclave HMAC derivada por HKDF de ENCRYPTION_KEY.
  */
 export function signExternalReference(payload: SignedExternalRefPayload): string {
   const dataB64 = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
@@ -144,4 +157,3 @@ export function verifyExternalReference(
     return null;
   }
 }
-

@@ -27,7 +27,7 @@ export async function updateOrganization(
 
   const existing = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { mpAccessToken: true },
+    select: { mpAccessToken: true, mpWebhookSecret: true },
   });
 
   if (!existing) {
@@ -35,6 +35,13 @@ export async function updateOrganization(
   }
 
   let mpAccessTokenToSave = existing.mpAccessToken;
+  let mpWebhookSecretToSave = existing.mpWebhookSecret;
+  if (typeof data.mpWebhookSecret === 'string') {
+    const trimmedSecret = data.mpWebhookSecret.trim();
+    if (trimmedSecret.length > 0 && !trimmedSecret.startsWith('••••••••')) {
+      mpWebhookSecretToSave = encryptSecret(trimmedSecret);
+    }
+  }
   if (typeof data.mpAccessToken === "string") {
     const trimmed = data.mpAccessToken.trim();
     if (trimmed.length > 0 && !trimmed.startsWith("••••••••")) {
@@ -60,6 +67,7 @@ export async function updateOrganization(
       cbuCvu: data.cbuCvu,
       aliasCbu: data.bankAlias || data.aliasCbu,
       mpAccessToken: mpAccessTokenToSave,
+      mpWebhookSecret: mpWebhookSecretToSave,
       mpPublicKey: data.mpPublicKey,
       logoUrl: data.logoUrl,
       signatureUrl: data.signatureUrl,

@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaClient, UserRole, QuoteItemType } from "@prisma/client";
 import { createClient, User as SupabaseAuthUser } from "@supabase/supabase-js";
 

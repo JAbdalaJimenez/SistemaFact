@@ -41,7 +41,14 @@ export interface MiddlewareAppUser {
   role: "SUPERADMIN" | "OWNER" | "MEMBER";
 }
 
-export const updateSession = async (request: NextRequest) => {
+export interface UpdateSessionResult {
+  response: NextResponse;
+  user: any;
+  appUser: MiddlewareAppUser | null;
+  dbError: boolean;
+}
+
+export const updateSession = async (request: NextRequest): Promise<UpdateSessionResult> => {
   const { supabase, response } = createClient(request);
 
   // IMPORTANTE: supabase.auth.getUser() es obligatorio para que @supabase/ssr
@@ -51,11 +58,10 @@ export const updateSession = async (request: NextRequest) => {
   } = await supabase.auth.getUser();
 
   if (!user || !user.id) {
-    return { response, user: null, appUser: null };
+    return { response, user: null, appUser: null, dbError: false };
   }
 
   // Verificar que el usuario de Supabase Auth tenga fila User vinculada y organizationId en la DB.
-  // Si no existe fila User vinculada por authUserId, se cierra la sesión y no se permite el paso.
   const supabaseAdmin = createSupabaseAdminClient(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.SUPABASE_SERVICE_ROLE_KEY,
@@ -73,14 +79,23 @@ export const updateSession = async (request: NextRequest) => {
     .eq("authUserId", user.id)
     .maybeSingle();
 
-  if (dbError || !dbUser || !dbUser.organizationId) {
+  // Si hubo un error en la base de datos (p. ej. indisponibilidad de red / timeout):
+  // NO cerramos la sesión en Supabase Auth porque podría ser un error transitorio.
+  if (dbError) {
+    console.error("[Middleware] Error transitorio consultando public.users:", dbError.message);
+    return { response, user, appUser: null, dbError: true };
+  }
+
+  // Solo cerramos la sesión si la consulta fue EXITOSA pero NO existe fila o no tiene organizationId
+  if (!dbUser || !dbUser.organizationId) {
     await supabase.auth.signOut();
-    return { response, user: null, appUser: null };
+    return { response, user: null, appUser: null, dbError: false };
   }
 
   return {
     response,
     user,
     appUser: dbUser as MiddlewareAppUser,
+    dbError: false,
   };
 };
