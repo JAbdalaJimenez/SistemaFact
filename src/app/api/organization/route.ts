@@ -2,8 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrganization, updateOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { organizationSettingsSchema } from "@/lib/types";
+import { maskSecret } from "@/lib/crypto";
 
 export const dynamic = "force-dynamic";
+
+function sanitizeOrganizationResponse(org: Awaited<ReturnType<typeof getOrganization>>) {
+  return {
+    id: org.id,
+    name: org.name || "ElectroCba",
+    slug: org.slug || "electrocba",
+    legalName: org.legalName || org.name || "",
+    ersepLicenseNumber: org.ersepLicenseNumber || org.ersepLicense || "",
+    cuit: org.cuit || "",
+    vatCondition: org.vatCondition || org.taxCondition || "Monotributo",
+    legalAddress: org.legalAddress || org.address || "",
+    phone: org.phone || "",
+    whatsappNumber: org.whatsappNumber || org.phone || "",
+    bankAlias: org.bankAlias || org.aliasCbu || "",
+    cbuCvu: org.cbuCvu || "",
+    mpConfigured: Boolean(org.mpAccessToken),
+    mpAccessTokenMasked: maskSecret(org.mpAccessToken),
+    mpPublicKey: org.mpPublicKey || "",
+    logoUrl: org.logoUrl || "/logo-icon.png",
+    signatureUrl: org.signatureUrl || "",
+    email: org.email || "",
+  };
+}
 
 export async function GET() {
   try {
@@ -17,25 +41,7 @@ export async function GET() {
     return NextResponse.json(
       {
         success: true,
-        organization: {
-          id: org.id,
-          name: org.name || "ElectroCba",
-          slug: org.slug || "electrocba",
-          legalName: org.legalName || org.name || "",
-          ersepLicenseNumber: org.ersepLicenseNumber || org.ersepLicense || "",
-          cuit: org.cuit || "",
-          vatCondition: org.vatCondition || org.taxCondition || "Monotributo",
-          legalAddress: org.legalAddress || org.address || "",
-          phone: org.phone || "",
-          whatsappNumber: org.whatsappNumber || org.phone || "",
-          bankAlias: org.bankAlias || org.aliasCbu || "",
-          cbuCvu: org.cbuCvu || "",
-          mpAccessToken: org.mpAccessToken || "",
-          mpPublicKey: org.mpPublicKey || "",
-          logoUrl: org.logoUrl || "/logo-icon.png",
-          signatureUrl: org.signatureUrl || "",
-          email: org.email || "",
-        },
+        organization: sanitizeOrganizationResponse(org),
       },
       {
         headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
@@ -82,7 +88,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Configuración guardada exitosamente",
-      organization: updated,
+      organization: sanitizeOrganizationResponse(updated),
     });
   } catch (error) {
     console.error("Error al actualizar organización:", error);

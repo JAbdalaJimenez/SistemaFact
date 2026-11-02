@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
     }
 
-    const job = await convertQuoteToJob(id);
+    const job = await convertQuoteToJob(session.organizationId, id);
 
     if (!job) {
       return NextResponse.json(

@@ -2,13 +2,14 @@ import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { encryptSecret } from "@/lib/crypto";
 
 // 1. Obtener Organización
-export async function getOrganization(orgId?: string) {
-  if (!orgId) {
+export async function getOrganization(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
-  const found = await prisma.organization.findUnique({ where: { id: orgId } });
+  const found = await prisma.organization.findUnique({ where: { id: organizationId } });
   if (!found) {
     throw new Error("Organización no encontrada");
   }
@@ -16,16 +17,33 @@ export async function getOrganization(orgId?: string) {
 }
 
 export async function updateOrganization(
-  orgId: string,
+  organizationId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: Partial<any>
 ) {
-  if (!orgId) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
 
+  const existing = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { mpAccessToken: true },
+  });
+
+  if (!existing) {
+    throw new Error("Organización no encontrada");
+  }
+
+  let mpAccessTokenToSave = existing.mpAccessToken;
+  if (typeof data.mpAccessToken === "string") {
+    const trimmed = data.mpAccessToken.trim();
+    if (trimmed.length > 0 && !trimmed.startsWith("••••••••")) {
+      mpAccessTokenToSave = encryptSecret(trimmed);
+    }
+  }
+
   return await prisma.organization.update({
-    where: { id: orgId },
+    where: { id: organizationId },
     data: {
       name: data.name,
       legalName: data.legalName,
@@ -41,7 +59,7 @@ export async function updateOrganization(
       bankAlias: data.bankAlias,
       cbuCvu: data.cbuCvu,
       aliasCbu: data.bankAlias || data.aliasCbu,
-      mpAccessToken: data.mpAccessToken,
+      mpAccessToken: mpAccessTokenToSave,
       mpPublicKey: data.mpPublicKey,
       logoUrl: data.logoUrl,
       signatureUrl: data.signatureUrl,
@@ -51,22 +69,22 @@ export async function updateOrganization(
 }
 
 // 2. Métricas del Dashboard Operativo
-export async function getDashboardMetrics(orgId?: string) {
-  if (!orgId) {
+export async function getDashboardMetrics(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
 
   const [jobs, quotes, payments] = await Promise.all([
     prisma.job.findMany({
-      where: { organizationId: orgId, deletedAt: null },
+      where: { organizationId, deletedAt: null },
       include: { customer: true },
     }),
     prisma.quote.findMany({
-      where: { organizationId: orgId, deletedAt: null },
+      where: { organizationId, deletedAt: null },
       include: { customer: true },
     }),
     prisma.payment.findMany({
-      where: { organizationId: orgId, status: "APPROVED" },
+      where: { organizationId, status: "APPROVED" },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
@@ -121,23 +139,23 @@ export async function getDashboardMetrics(orgId?: string) {
 }
 
 // 3. Clientes
-export async function getCustomers(orgId?: string) {
-  if (!orgId) {
+export async function getCustomers(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
   return await prisma.customer.findMany({
-    where: { organizationId: orgId, deletedAt: null },
+    where: { organizationId, deletedAt: null },
     orderBy: { createdAt: "desc" },
   });
 }
 
-export async function createCustomer(orgId: string, data: CustomerFormData) {
-  if (!orgId) {
+export async function createCustomer(organizationId: string, data: CustomerFormData) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
   return await prisma.customer.create({
     data: {
-      organizationId: orgId,
+      organizationId,
       name: data.name,
       phone: data.phone,
       address: data.address,
@@ -148,22 +166,22 @@ export async function createCustomer(orgId: string, data: CustomerFormData) {
 }
 
 // 4. Servicios
-export async function getServices(orgId?: string) {
-  if (!orgId) {
+export async function getServices(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
   return await prisma.service.findMany({
-    where: { organizationId: orgId, deletedAt: null },
+    where: { organizationId, deletedAt: null },
   });
 }
 
 // 5. Presupuestos (Quotes)
-export async function getQuotes(orgId?: string) {
-  if (!orgId) {
+export async function getQuotes(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
   return await prisma.quote.findMany({
-    where: { organizationId: orgId, deletedAt: null },
+    where: { organizationId, deletedAt: null },
     include: {
       customer: true,
       items: true,
@@ -194,10 +212,19 @@ export async function getQuoteByPublicToken(token: string) {
   });
 }
 
-export async function createQuote(orgId: string, input: QuoteCreateInput) {
-  if (!orgId) {
+export async function createQuote(organizationId: string, input: QuoteCreateInput) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
+
+  const customer = await prisma.customer.findFirst({
+    where: { id: input.customerId, organizationId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!customer) {
+    throw new Error("El cliente seleccionado no pertenece a esta organización");
+  }
+
   const netAmount = input.items.reduce(
     (acc, curr) => acc + curr.quantity * curr.unitPrice,
     0
@@ -213,7 +240,7 @@ export async function createQuote(orgId: string, input: QuoteCreateInput) {
 
   return await prisma.quote.create({
     data: {
-      organizationId: orgId,
+      organizationId,
       customerId: input.customerId,
       title: input.title,
       quoteNumber,
@@ -244,9 +271,20 @@ export async function createQuote(orgId: string, input: QuoteCreateInput) {
 }
 
 export async function updateQuoteStatus(
+  organizationId: string,
   quoteId: string,
   status: "DRAFT" | "SENT" | "APPROVED" | "REJECTED" | "CONVERTED"
 ) {
+  if (!organizationId) {
+    throw new Error("organizationId es obligatorio");
+  }
+  const existing = await prisma.quote.findFirst({
+    where: { id: quoteId, organizationId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new Error("Presupuesto no encontrado");
+  }
   return await prisma.quote.update({
     where: { id: quoteId },
     data: { status },
@@ -254,12 +292,12 @@ export async function updateQuoteStatus(
 }
 
 // 6. Trabajos (Jobs)
-export async function getJobs(orgId?: string) {
-  if (!orgId) {
+export async function getJobs(organizationId: string) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
   return await prisma.job.findMany({
-    where: { organizationId: orgId, deletedAt: null },
+    where: { organizationId, deletedAt: null },
     include: {
       customer: true,
       payments: {
@@ -270,9 +308,12 @@ export async function getJobs(orgId?: string) {
   });
 }
 
-export async function getJobById(jobId: string) {
-  return await prisma.job.findUnique({
-    where: { id: jobId },
+export async function getJobById(organizationId: string, jobId: string) {
+  if (!organizationId) {
+    throw new Error("organizationId es obligatorio");
+  }
+  return await prisma.job.findFirst({
+    where: { id: jobId, organizationId, deletedAt: null },
     include: {
       customer: true,
       quote: {
@@ -287,9 +328,20 @@ export async function getJobById(jobId: string) {
 }
 
 export async function updateJobStatus(
+  organizationId: string,
   jobId: string,
   status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"
 ) {
+  if (!organizationId) {
+    throw new Error("organizationId es obligatorio");
+  }
+  const existing = await prisma.job.findFirst({
+    where: { id: jobId, organizationId, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existing) {
+    throw new Error("Orden de trabajo no encontrada");
+  }
   return await prisma.job.update({
     where: { id: jobId },
     data: {
@@ -301,23 +353,23 @@ export async function updateJobStatus(
 
 // 7. Pagos y Cobranzas
 export async function recordPayment(
-  orgId: string,
+  organizationId: string,
   input: ManualPaymentInput & { mpPaymentId?: string; mpPreferenceId?: string }
 ) {
-  if (!orgId) {
+  if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
 
   return await prisma.$transaction(async (tx) => {
-    const job = await tx.job.findUnique({
-      where: { id: input.jobId },
+    const job = await tx.job.findFirst({
+      where: { id: input.jobId, organizationId, deletedAt: null },
     });
 
     if (!job) throw new Error("Orden de trabajo no encontrada");
 
     const payment = await tx.payment.create({
       data: {
-        organizationId: orgId,
+        organizationId,
         jobId: input.jobId,
         amount: input.amount,
         paymentMethod: input.paymentMethod,
@@ -344,9 +396,13 @@ export async function recordPayment(
 }
 
 // 8. Convertir Presupuesto a Orden de Trabajo (al aprobarse o pagarse seña)
-export async function convertQuoteToJob(quoteId: string) {
-  const quote = await prisma.quote.findUnique({
-    where: { id: quoteId },
+export async function convertQuoteToJob(organizationId: string, quoteId: string) {
+  if (!organizationId) {
+    throw new Error("organizationId es obligatorio");
+  }
+
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, organizationId, deletedAt: null },
     include: { job: true },
   });
 

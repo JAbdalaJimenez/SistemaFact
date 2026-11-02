@@ -2,18 +2,13 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getJobById } from "@/lib/services";
 import { getSession } from "@/lib/auth";
-import { formatCurrencyARS, formatPhoneForWhatsApp, formatDate } from "@/lib/types";
+import { formatDate } from "@/lib/types";
 import { JobDetailsClient } from "./client";
 import {
   ArrowLeft,
-  Briefcase,
   Calendar,
   MapPin,
   Phone,
-  FileText,
-  ShieldCheck,
-  Clock,
-  CheckCircle2,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +20,11 @@ interface Props {
 
 export default async function JobDetailPage({ params }: Props) {
   const { id } = await params;
-  const [job, session] = await Promise.all([getJobById(id), getSession()]);
+  const session = await getSession();
 
   if (!session) redirect(`/login?callbackUrl=/jobs/${id}`);
+
+  const job = await getJobById(session.organizationId, id);
   if (!job || job.organizationId !== session.organizationId) {
     notFound();
   }
@@ -35,10 +32,6 @@ export default async function JobDetailPage({ params }: Props) {
   const totalAmount = Number(job.totalAmount) || 0;
   const balanceDue = Number(job.balanceDue) || 0;
   const totalPaid = Math.max(0, totalAmount - balanceDue);
-  const paidPercentage =
-    totalAmount > 0
-      ? Math.min(100, Math.round((totalPaid / totalAmount) * 100))
-      : 100;
 
   const customerName = job.customer?.name || "Comitente";
   const customerAddress = job.customer?.address || "Domicilio en obra";

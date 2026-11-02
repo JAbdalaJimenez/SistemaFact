@@ -2,21 +2,16 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ShieldCheck,
   Building2,
-  FileText,
   CreditCard,
   Phone,
-  MessageCircle,
   Save,
   CheckCircle2,
   AlertCircle,
   Loader2,
   ArrowLeft,
-  Upload,
-  Eye,
   KeyRound,
   Banknote,
   MapPin,
@@ -48,12 +43,16 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [mpConfigured, setMpConfigured] = useState(false);
+  const [mpAccessTokenMasked, setMpAccessTokenMasked] = useState("");
 
   useEffect(() => {
     fetch("/api/organization", { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (data?.organization) {
+          setMpConfigured(Boolean(data.organization.mpConfigured));
+          setMpAccessTokenMasked(data.organization.mpAccessTokenMasked || "");
           setFormData({
             name: data.organization.name || "",
             legalName: data.organization.legalName || "",
@@ -65,7 +64,7 @@ export default function SettingsPage() {
             whatsappNumber: data.organization.whatsappNumber || "",
             bankAlias: data.organization.bankAlias || "",
             cbuCvu: data.organization.cbuCvu || "",
-            mpAccessToken: data.organization.mpAccessToken || "",
+            mpAccessToken: "",
             mpPublicKey: data.organization.mpPublicKey || "",
             logoUrl: data.organization.logoUrl || "/logo-icon.png",
             signatureUrl:
@@ -107,6 +106,7 @@ export default function SettingsPage() {
         body: JSON.stringify(formData),
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any = {};
       try {
         data = await res.json();
@@ -114,6 +114,12 @@ export default function SettingsPage() {
 
       if (!res.ok) {
         throw new Error(data.error || `Error del servidor (${res.status})`);
+      }
+
+      if (data?.organization) {
+        setMpConfigured(Boolean(data.organization.mpConfigured));
+        setMpAccessTokenMasked(data.organization.mpAccessTokenMasked || "");
+        setFormData((prev) => ({ ...prev, mpAccessToken: "" }));
       }
 
       setSavedSuccess(true);
@@ -215,7 +221,6 @@ export default function SettingsPage() {
                   alt="Logo"
                   className="w-full h-full object-contain"
                   onError={(e) => {
-                    // Fallback to placeholder if custom image fails
                     (e.target as HTMLElement).style.display = "none";
                   }}
                 />
@@ -514,11 +519,17 @@ export default function SettingsPage() {
                 type="password"
                 value={formData.mpAccessToken || ""}
                 onChange={(e) => handleChange("mpAccessToken", e.target.value)}
-                placeholder="APP_USR-... o TEST-... (dejar vacío para usar .env)"
+                placeholder={
+                  mpConfigured
+                    ? `Token cifrado activo (${mpAccessTokenMasked}) — ingresar nuevo para reemplazar`
+                    : "APP_USR-... o TEST-... (dejar vacío para usar .env)"
+                }
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E2E8F0] text-xs font-mono text-[#0B132B] focus:border-[#0B132B] focus:ring-1 focus:ring-[#0B132B]"
               />
               <p className="text-[10px] text-slate-400 mt-1">
-                Si no se configura, se utilizará la clave centralizada de las variables de entorno.
+                {mpConfigured
+                  ? `Token almacenado cifrado (${mpAccessTokenMasked}). Dejá este campo vacío para mantener el token actual.`
+                  : "Si no se configura, se utilizará la clave centralizada de las variables de entorno."}
               </p>
             </div>
 

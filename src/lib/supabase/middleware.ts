@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { publicEnv } from "@/lib/env.public";
+import { env } from "@/lib/env";
 
 export const createClient = (request: NextRequest) => {
   let supabaseResponse = NextResponse.next({
@@ -33,6 +35,12 @@ export const createClient = (request: NextRequest) => {
   return { supabase, response: supabaseResponse };
 };
 
+export interface MiddlewareAppUser {
+  id: string;
+  organizationId: string;
+  role: "SUPERADMIN" | "OWNER" | "MEMBER";
+}
+
 export const updateSession = async (request: NextRequest) => {
   const { supabase, response } = createClient(request);
 
@@ -42,6 +50,37 @@ export const updateSession = async (request: NextRequest) => {
     data: { user },
   } = await supabase.auth.getUser();
 
-  return { response, user };
-};
+  if (!user || !user.id) {
+    return { response, user: null, appUser: null };
+  }
 
+  // Verificar que el usuario de Supabase Auth tenga fila User vinculada y organizationId en la DB.
+  // Si no existe fila User vinculada por authUserId, se cierra la sesión y no se permite el paso.
+  const supabaseAdmin = createSupabaseAdminClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.SUPABASE_SERVICE_ROLE_KEY,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+
+  const { data: dbUser, error: dbError } = await supabaseAdmin
+    .from("users")
+    .select("id, organizationId, role")
+    .eq("authUserId", user.id)
+    .maybeSingle();
+
+  if (dbError || !dbUser || !dbUser.organizationId) {
+    await supabase.auth.signOut();
+    return { response, user: null, appUser: null };
+  }
+
+  return {
+    response,
+    user,
+    appUser: dbUser as MiddlewareAppUser,
+  };
+};

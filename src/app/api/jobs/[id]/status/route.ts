@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: Props) {
       return NextResponse.json({ error: "Orden de trabajo no encontrada" }, { status: 404 });
     }
 
-    const updatedJob = await updateJobStatus(id, status);
+    const updatedJob = await updateJobStatus(session.organizationId, id, status);
     return NextResponse.json({ success: true, job: updatedJob });
   } catch (error: unknown) {
     console.error("Error al actualizar estado del trabajo:", error);

@@ -1,13 +1,15 @@
 import prisma from "./db";
 import { createClient } from "@/lib/supabase/server";
 
+export type AppUserRole = "SUPERADMIN" | "OWNER" | "MEMBER";
+
 export interface SessionUser {
   id: string;
   userId: string;
   authUserId: string;
   name: string;
   email: string;
-  role: "SUPERADMIN" | "OWNER" | "MEMBER";
+  role: AppUserRole;
   organizationId: string;
   organizationName: string;
   ersepLicense: string;
@@ -30,9 +32,10 @@ export class ForbiddenError extends Error {
 }
 
 /**
- * Obtiene la sesión actual revalidando el usuario contra Supabase Auth (getUser)
- * y resolviendo su perfil y organización exclusivamente desde la tabla User de Prisma.
- * Nunca confía en user_metadata ni crea organizaciones por defecto.
+ * Obtiene la sesión actual revalidando el token contra Supabase Auth (`getUser()`)
+ * y buscando la fila `User` vinculada por `authUserId` en Prisma.
+ * Si el usuario existe en Supabase Auth pero no tiene fila `User` u `organizationId` en Prisma,
+ * cierra la sesión huérfana y devuelve `null`.
  */
 export async function getSession(): Promise<SessionUser | null> {
   try {
@@ -52,6 +55,9 @@ export async function getSession(): Promise<SessionUser | null> {
     });
 
     if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
+      try {
+        await supabase.auth.signOut();
+      } catch {}
       return null;
     }
 
@@ -61,7 +67,7 @@ export async function getSession(): Promise<SessionUser | null> {
       authUserId: authUser.id,
       email: dbUser.email,
       name: dbUser.name,
-      role: dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER",
+      role: dbUser.role as AppUserRole,
       organizationId: dbUser.organizationId,
       organizationName: dbUser.organization.name,
       ersepLicense:
@@ -76,8 +82,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
 /**
  * Exige una sesión válida vinculada a un User y Organization en Prisma.
- * Lanza UnauthorizedError (401) si no hay sesión en Supabase Auth,
- * o ForbiddenError (403) si el usuario de Auth no tiene fila/organización en Prisma.
+ * Falla cerrado: sin sesión en Supabase Auth -> 401; sin fila/organización en Prisma -> 403.
  */
 export async function requireSession(): Promise<SessionUser> {
   const supabase = await createClient();
@@ -96,7 +101,10 @@ export async function requireSession(): Promise<SessionUser> {
   });
 
   if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
-    throw new ForbiddenError("Cuenta sin organización asignada en el sistema");
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    throw new ForbiddenError("Cuenta sin organización o perfil asignado en el sistema");
   }
 
   return {
@@ -105,7 +113,7 @@ export async function requireSession(): Promise<SessionUser> {
     authUserId: authUser.id,
     email: dbUser.email,
     name: dbUser.name,
-    role: dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER",
+    role: dbUser.role as AppUserRole,
     organizationId: dbUser.organizationId,
     organizationName: dbUser.organization.name,
     ersepLicense:
