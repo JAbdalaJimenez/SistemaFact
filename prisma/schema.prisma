@@ -220,7 +220,7 @@ model Payment {
   amount         Int           // Monto cobrado en ARS
   paymentMethod  PaymentMethod // CASH, TRANSFER, MERCADO_PAGO
   status         PaymentStatus @default(APPROVED)
-  mpPaymentId    String?       // ID de transacción retornado por Mercado Pago
+  mpPaymentId    String?       @unique // ID de transacción retornado por Mercado Pago (idempotencia en DB)
   mpPreferenceId String?       // ID de preferencia generada
   notes          String?       // ej: "Seña 50%", "Transferencia CBU / Comprobante #9412"
   createdAt      DateTime      @default(now())

@@ -1,22 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getJobById, getOrganization } from "@/lib/services";
+import { z } from "zod";
+import { getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { createPreference, generateWhatsAppLink } from "@/lib/mercadopago";
 import prisma from "@/lib/db";
 
+const createPreferenceBodySchema = z
+  .object({
+    jobId: z.string().min(1).max(100).optional(),
+    quoteId: z.string().min(1).max(100).optional(),
+    publicToken: z.string().min(1).max(100).optional(),
+  })
+  .refine((d) => Boolean(d.jobId || d.quoteId || d.publicToken), {
+    message: "Debe proporcionar jobId, quoteId o publicToken",
+  });
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { jobId, quoteId, publicToken } = body;
+    const rawBody = await req.json().catch(() => ({}));
+    const parsed = createPreferenceBodySchema.safeParse(rawBody);
 
-    if (!jobId && !quoteId && !publicToken) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Debe proporcionar jobId, quoteId o publicToken" },
+        { error: "Datos inválidos para generar preferencia", issues: parsed.error.issues },
         { status: 400 }
       );
     }
 
+    const { jobId, quoteId, publicToken } = parsed.data;
     const session = await getSession();
+
     let orgId = session?.organizationId;
     let title = "Servicio Eléctrico ElectroCba";
     let customerName = "Cliente";
@@ -24,16 +37,25 @@ export async function POST(req: NextRequest) {
     const customerEmail = "cliente@electrocba.com.ar";
     let calculatedAmount = 0;
     let resolvedQuoteId: string | undefined;
+    let resolvedJobId: string | undefined;
 
     if (jobId) {
       if (!session) {
         return NextResponse.json({ error: "No autenticado" }, { status: 401 });
       }
-      const job = await getJobById(jobId);
-      if (!job || job.organizationId !== session.organizationId) {
+      const job = await prisma.job.findFirst({
+        where: {
+          id: jobId,
+          organizationId: session.organizationId,
+          deletedAt: null,
+        },
+        include: { customer: true },
+      });
+      if (!job) {
         return NextResponse.json({ error: "Trabajo no encontrado" }, { status: 404 });
       }
       orgId = job.organizationId;
+      resolvedJobId = job.id;
       calculatedAmount = job.balanceDue;
       title = `Saldo - ${job.title || "Trabajo Eléctrico"}`;
       customerName = job.customer?.name || "Cliente";
@@ -48,13 +70,13 @@ export async function POST(req: NextRequest) {
           ? {
               organizationId: session.organizationId,
               OR: [
-                ...(quoteId ? [{ id: String(quoteId) }] : []),
-                ...(publicToken ? [{ publicToken: String(publicToken) }] : []),
+                ...(quoteId ? [{ id: quoteId }] : []),
+                ...(publicToken ? [{ publicToken }] : []),
               ],
               deletedAt: null,
             }
           : {
-              publicToken: String(publicToken),
+              publicToken: publicToken!,
               deletedAt: null,
             },
         include: { customer: true },
@@ -66,10 +88,9 @@ export async function POST(req: NextRequest) {
 
       orgId = quote.organizationId;
       resolvedQuoteId = quote.id;
-      calculatedAmount = Math.round(
-        (quote.totalAmount * (quote.depositPercentage || 50)) / 100
-      );
-      title = `Seña ${quote.depositPercentage || 50}% - ${quote.title || "Trabajo Eléctrico"}`;
+      const pct = quote.depositPercentage || 50;
+      calculatedAmount = Math.round((quote.totalAmount * pct) / 100);
+      title = `Seña ${pct}% - ${quote.title || "Trabajo Eléctrico"}`;
       customerName = quote.customer?.name || "Cliente";
       customerPhone = quote.customer?.phone || "+5493510000000";
     }
@@ -88,8 +109,8 @@ export async function POST(req: NextRequest) {
       amount: calculatedAmount,
       organizationId: org.id,
       accessToken: org.mpAccessToken || undefined,
-      jobId,
-      quoteId: resolvedQuoteId || quoteId,
+      jobId: resolvedJobId,
+      quoteId: resolvedQuoteId,
       customerName,
       customerEmail,
     });
