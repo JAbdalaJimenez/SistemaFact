@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+const isProd = process.env.NODE_ENV === "production";
+
 const publicEnvSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z
     .string()
@@ -17,8 +19,9 @@ const parsedPublic = publicEnvSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  NEXT_PUBLIC_APP_URL:
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  NEXT_PUBLIC_APP_URL: isProd
+    ? process.env.NEXT_PUBLIC_APP_URL
+    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
 });
 
 if (!parsedPublic.success) {
@@ -31,4 +34,3 @@ if (!parsedPublic.success) {
 }
 
 export const publicEnv = parsedPublic.data;
-

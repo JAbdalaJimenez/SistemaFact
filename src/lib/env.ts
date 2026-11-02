@@ -4,6 +4,13 @@ import { publicEnv } from "./env.public";
 
 const isProd = process.env.NODE_ENV === "production";
 
+const encryptionKeyValidator = z
+  .string()
+  .regex(
+    /^[0-9a-fA-F]{64}$/,
+    "ENCRYPTION_KEY debe ser una cadena hexadecimal de 64 caracteres (32 bytes)"
+  );
+
 const serverEnvSchema = z.object({
   DATABASE_URL: z
     .string()
@@ -31,8 +38,8 @@ const serverEnvSchema = z.object({
     ? z.string().min(1, "MERCADO_PAGO_WEBHOOK_SECRET es obligatoria en producción")
     : z.string().optional(),
   ENCRYPTION_KEY: isProd
-    ? z.string().min(1, "ENCRYPTION_KEY es obligatoria en producción")
-    : z.string().optional(),
+    ? encryptionKeyValidator
+    : encryptionKeyValidator.optional(),
 });
 
 const parsedServer = serverEnvSchema.safeParse({

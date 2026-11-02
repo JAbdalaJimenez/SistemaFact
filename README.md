@@ -57,22 +57,41 @@ cp .env.example .env.local
 ```
 
 ### 3. Aplicar migraciones y generar cliente Prisma
+
+**En una base de datos nueva (vacía)**:
 ```bash
 npx prisma migrate deploy
 npx prisma generate
 ```
 
-### 4. Inicializar datos base (Seed)
-Definir `SEED_SUPERADMIN_EMAIL` y `SEED_SUPERADMIN_PASSWORD` en el entorno antes de ejecutar:
+**En una base de datos existente (creada previamente con `db push` o `supabase_init.sql`)**:
+1. Marcar la migración baseline inicial como ya aplicada para que Prisma no intente recrear las tablas existentes:
+   ```bash
+   npx prisma migrate resolve --applied 20260101000000_baseline
+   ```
+2. Aplicar las migraciones incrementales posteriores (`20261102164500_add_auth_user_id_to_users`, etc.):
+   ```bash
+   npx prisma migrate deploy
+   npx prisma generate
+   ```
+
+### 4. Inicializar datos base en Desarrollo (Seed)
+El script de seed está bloqueado en producción (`NODE_ENV === "production"`) y exige `ALLOW_SEED_WIPE=true`, `SEED_SUPERADMIN_EMAIL` y `SEED_SUPERADMIN_PASSWORD`:
 ```bash
-npm run db:seed
+ALLOW_SEED_WIPE=true SEED_SUPERADMIN_PASSWORD="TuPasswordSeguro123!" npm run db:seed
 ```
 
 ### 5. Migración de usuarios existentes a Supabase Auth
 Para vincular usuarios existentes en la tabla `users` que aún no posean `authUserId`:
 ```bash
-npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/migrate-users-to-supabase.ts --dry-run
-npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/migrate-users-to-supabase.ts
+# 1. Simulación sin cambios (dry-run)
+npx tsx scripts/migrate-users-to-supabase.ts --dry-run
+
+# 2. Ejecución real (imprime el host de DATABASE_URL y exige --yes; conserva el hash en password)
+npx tsx scripts/migrate-users-to-supabase.ts --yes
+
+# 3. Una vez verificado el login en Supabase Auth, limpiar los hashes legados de password
+npx tsx scripts/migrate-users-to-supabase.ts --finalize --yes
 ```
 
 ### 6. Iniciar Servidor de Desarrollo
