@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Briefcase,
   MapPin,
@@ -15,6 +16,7 @@ export const revalidate = 0;
 
 export default async function JobsListPage() {
   const session = await getSession();
+  if (!session) redirect("/login?callbackUrl=/jobs");
   const [jobs, quotes] = await Promise.all([
     getJobs(session?.organizationId),
     getQuotes(session?.organizationId),

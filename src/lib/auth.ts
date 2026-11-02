@@ -1,19 +1,10 @@
-import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
 import prisma from "./db";
-
-function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!secret) {
-    throw new Error("Missing session signing key in environment variables.");
-  }
-  return new TextEncoder().encode(secret);
-}
-
-export const SESSION_COOKIE_NAME = "electrocba_session";
+import { createClient } from "@/lib/supabase/server";
 
 export interface SessionUser {
   id: string;
+  userId: string;
+  authUserId: string;
   name: string;
   email: string;
   role: "SUPERADMIN" | "OWNER" | "MEMBER";
@@ -22,64 +13,104 @@ export interface SessionUser {
   ersepLicense: string;
 }
 
-/**
- * Genera un token JWT firmado para la sesión del usuario
- */
-export async function createSessionToken(user: SessionUser): Promise<string> {
-  return await new SignJWT({ ...user })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(getJwtSecret());
+export class UnauthorizedError extends Error {
+  status = 401;
+  constructor(message = "No autenticado") {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
 }
 
-/**
- * Verifica un token JWT
- */
-export async function verifySessionToken(token: string): Promise<SessionUser | null> {
-  try {
-    const { payload } = await jwtVerify(token, getJwtSecret());
-    return payload as unknown as SessionUser;
-  } catch {
-    return null;
+export class ForbiddenError extends Error {
+  status = 403;
+  constructor(message = "Sin permisos para acceder a este recurso") {
+    super(message);
+    this.name = "ForbiddenError";
   }
 }
 
 /**
- * Obtiene la sesión actual desde las cookies en Server Components / Server Actions
- * y sincroniza el organizationId con la base de datos.
+ * Obtiene la sesión actual revalidando el usuario contra Supabase Auth (getUser)
+ * y resolviendo su perfil y organización exclusivamente desde la tabla User de Prisma.
+ * Nunca confía en user_metadata ni crea organizaciones por defecto.
  */
 export async function getSession(): Promise<SessionUser | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-  const session = await verifySessionToken(token);
-  if (!session || !session.id) return null;
-
   try {
-    const dbUser = await prisma.user.findUnique({
-      where: { id: session.id },
-      select: {
-        organizationId: true,
-        role: true,
-        organization: {
-          select: { name: true, ersepLicenseNumber: true, ersepLicense: true },
-        },
-      },
-    });
-    if (!dbUser) return null;
+    const supabase = await createClient();
+    const {
+      data: { user: authUser },
+      error,
+    } = await supabase.auth.getUser();
 
-    session.organizationId = dbUser.organizationId;
-    session.role = dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER";
-    if (dbUser.organization) {
-      session.organizationName = dbUser.organization.name;
-      session.ersepLicense =
+    if (error || !authUser || !authUser.id) {
+      return null;
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { authUserId: authUser.id },
+      include: { organization: true },
+    });
+
+    if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
+      return null;
+    }
+
+    return {
+      id: dbUser.id,
+      userId: dbUser.id,
+      authUserId: authUser.id,
+      email: dbUser.email,
+      name: dbUser.name,
+      role: dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER",
+      organizationId: dbUser.organizationId,
+      organizationName: dbUser.organization.name,
+      ersepLicense:
         dbUser.organization.ersepLicenseNumber ||
         dbUser.organization.ersepLicense ||
-        session.ersepLicense;
-    }
-    return session;
+        "Matrícula Habilitada ERSeP",
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * Exige una sesión válida vinculada a un User y Organization en Prisma.
+ * Lanza UnauthorizedError (401) si no hay sesión en Supabase Auth,
+ * o ForbiddenError (403) si el usuario de Auth no tiene fila/organización en Prisma.
+ */
+export async function requireSession(): Promise<SessionUser> {
+  const supabase = await createClient();
+  const {
+    data: { user: authUser },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error || !authUser || !authUser.id) {
+    throw new UnauthorizedError("Sesión no iniciada o expirada");
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { authUserId: authUser.id },
+    include: { organization: true },
+  });
+
+  if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
+    throw new ForbiddenError("Cuenta sin organización asignada en el sistema");
+  }
+
+  return {
+    id: dbUser.id,
+    userId: dbUser.id,
+    authUserId: authUser.id,
+    email: dbUser.email,
+    name: dbUser.name,
+    role: dbUser.role as "SUPERADMIN" | "OWNER" | "MEMBER",
+    organizationId: dbUser.organizationId,
+    organizationName: dbUser.organization.name,
+    ersepLicense:
+      dbUser.organization.ersepLicenseNumber ||
+      dbUser.organization.ersepLicense ||
+      "Matrícula Habilitada ERSeP",
+  };
 }

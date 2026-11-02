@@ -7,19 +7,23 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata = {
-  title: "Gestión de Usuarios | Superadmin ElectroCba",
+  title: "Gestión de Usuarios | ElectroCba",
   description: "Administración de usuarios, roles y credenciales del sistema",
 };
 
 export default async function UsersManagementPage() {
   const session = await getSession();
 
-  // Protección estricta a nivel de servidor: Solo la cuenta SUPERADMIN puede ingresar
-  if (!session || session.role !== "SUPERADMIN") {
+  if (!session) {
+    redirect("/login?callbackUrl=/dashboard/users");
+  }
+
+  if (session.role !== "SUPERADMIN" && session.role !== "OWNER") {
     redirect("/dashboard");
   }
 
-  const users = await getUsers();
+  const filterOrgId = session.role === "SUPERADMIN" ? undefined : session.organizationId;
+  const users = await getUsers(filterOrgId);
 
   return <UsersManagerClient currentUser={session} initialUsers={users} />;
 }

@@ -44,3 +44,4 @@ export const updateSession = async (request: NextRequest) => {
 
   return { response, user };
 };
+

@@ -1,17 +1,33 @@
 import { PrismaClient, UserRole, QuoteItemType } from "@prisma/client";
-import bcrypt from "bcryptjs";
+import { createClient } from "@supabase/supabase-js";
 
 const prisma = new PrismaClient();
 
 export async function seedDatabase() {
   console.log("[SEED] Inicializando datos base limpios para ElectroCba...");
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const seedPassword = process.env.SEED_SUPERADMIN_PASSWORD;
+  const seedEmail = (process.env.SEED_SUPERADMIN_EMAIL || "admin@electrocba.com.ar")
+    .toLowerCase()
+    .trim();
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error(
+      "Debe definir NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY para ejecutar el seed."
+    );
+  }
+
   if (!seedPassword || seedPassword.length < 8) {
     throw new Error(
       "Debe definir SEED_SUPERADMIN_PASSWORD (mínimo 8 caracteres) en el entorno para ejecutar el seed."
     );
   }
+
+  const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 
   // 1. Limpieza inicial de tablas
   try {
@@ -27,7 +43,46 @@ export async function seedDatabase() {
     console.log("Limpieza omitida o base de datos inicial.");
   }
 
-  // 2. Organización Base del Instalador Profesional
+  // 2. Crear o recuperar el Superadmin en Supabase Auth
+  let authUserId: string | undefined;
+
+  const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+  if (listError) {
+    throw new Error(`Error al consultar usuarios en Supabase Auth: ${listError.message}`);
+  }
+
+  const existingAuthUser = listData.users.find(
+    (u) => u.email?.toLowerCase() === seedEmail
+  );
+
+  if (existingAuthUser) {
+    authUserId = existingAuthUser.id;
+    const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      password: seedPassword,
+      email_confirm: true,
+    });
+    if (updateErr) {
+      throw new Error(`Error al actualizar contraseña de Superadmin en Auth: ${updateErr.message}`);
+    }
+    console.log(`[SEED] Usuario Auth existente vinculado (${seedEmail}).`);
+  } else {
+    const { data: createdAuth, error: createErr } =
+      await supabaseAdmin.auth.admin.createUser({
+        email: seedEmail,
+        password: seedPassword,
+        email_confirm: true,
+      });
+
+    if (createErr || !createdAuth.user) {
+      throw new Error(
+        `Error al crear Superadmin en Supabase Auth: ${createErr?.message || "desconocido"}`
+      );
+    }
+    authUserId = createdAuth.user.id;
+    console.log(`[SEED] Usuario Superadmin creado en Supabase Auth (${seedEmail}).`);
+  }
+
+  // 3. Organización Base del Instalador Profesional
   const org = await prisma.organization.create({
     data: {
       name: "ElectroCba - Soluciones Eléctricas",
@@ -49,20 +104,19 @@ export async function seedDatabase() {
     },
   });
 
-  // 3. Usuario Superadmin Inicial
-  const superadminPasswordHash = bcrypt.hashSync(seedPassword, 10);
+  // 4. Usuario Superadmin vinculado por authUserId en Prisma
   await prisma.user.create({
     data: {
+      authUserId,
       organizationId: org.id,
       name: "Super Administrador",
-      email: process.env.SEED_SUPERADMIN_EMAIL || "admin@electrocba.com.ar",
-      password: superadminPasswordHash,
+      email: seedEmail,
       role: UserRole.SUPERADMIN,
       phone: "+5493510000000",
     },
   });
 
-  // 4. Catálogo de Servicios Normativos AEA 90364 e IRAM
+  // 5. Catálogo de Servicios Normativos AEA 90364 e IRAM
   await Promise.all([
     prisma.service.create({
       data: {
@@ -106,7 +160,7 @@ export async function seedDatabase() {
     }),
   ]);
 
-  console.log("[SEED] Base de datos inicializada sin datos ficticios. Lista para producción.");
+  console.log("[SEED] Base de datos inicializada y vinculada con Supabase Auth.");
 }
 
 if (require.main === module) {

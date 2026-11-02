@@ -3,92 +3,67 @@ import { getOrganization, updateOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { organizationSettingsSchema } from "@/lib/types";
 
-const DEFAULT_ORG_ID = "org_electrocba_cba01";
-
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const session = await getSession();
-    const targetOrgId = session?.organizationId || DEFAULT_ORG_ID;
-    const org = await getOrganization(targetOrgId);
+    if (!session) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
 
-    const safeOrg = org || {
-      id: targetOrgId,
-      name: "ElectroCba - Soluciones Eléctricas",
-      slug: "electrocba",
-      legalName: "Instalador Electricista Habilitado",
-      ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
-      ersepLicense: "Habilitación ERSeP Ley 10.281",
-      cuit: "20-00000000-0",
-      vatCondition: "Monotributo",
-      taxCondition: "Monotributo - Prestador de Servicios",
-      legalAddress: "Córdoba Capital, Provincia de Córdoba",
-      address: "Córdoba Capital, Provincia de Córdoba",
-      phone: "+54 9 351 000-0000",
-      whatsappNumber: "+5493510000000",
-      bankAlias: "ELECTROCBA.MP",
-      cbuCvu: "0000003100010000000000",
-      aliasCbu: "ELECTROCBA.MP",
-      mpAccessToken: "",
-      mpPublicKey: "",
-      logoUrl: "/logo-icon.png",
-      email: "contacto@electrocba.com.ar",
-    };
+    const org = await getOrganization(session.organizationId);
 
-    return NextResponse.json({
-      success: true,
-      organization: {
-        id: safeOrg.id,
-        name: safeOrg.name || "ElectroCba",
-        slug: safeOrg.slug || "electrocba",
-        legalName: safeOrg.legalName || safeOrg.name || "",
-        ersepLicenseNumber: safeOrg.ersepLicenseNumber || (safeOrg as any).ersepLicense || "",
-        cuit: safeOrg.cuit || "",
-        vatCondition: safeOrg.vatCondition || (safeOrg as any).taxCondition || "Monotributo",
-        legalAddress: safeOrg.legalAddress || (safeOrg as any).address || "",
-        phone: safeOrg.phone || "",
-        whatsappNumber: safeOrg.whatsappNumber || safeOrg.phone || "",
-        bankAlias: safeOrg.bankAlias || (safeOrg as any).aliasCbu || "",
-        cbuCvu: safeOrg.cbuCvu || "",
-        mpAccessToken: safeOrg.mpAccessToken || "",
-        mpPublicKey: safeOrg.mpPublicKey || "",
-        logoUrl: safeOrg.logoUrl || "/logo-icon.png",
-        signatureUrl: (safeOrg as any).signatureUrl || "",
-        email: safeOrg.email || "",
+    return NextResponse.json(
+      {
+        success: true,
+        organization: {
+          id: org.id,
+          name: org.name || "ElectroCba",
+          slug: org.slug || "electrocba",
+          legalName: org.legalName || org.name || "",
+          ersepLicenseNumber: org.ersepLicenseNumber || org.ersepLicense || "",
+          cuit: org.cuit || "",
+          vatCondition: org.vatCondition || org.taxCondition || "Monotributo",
+          legalAddress: org.legalAddress || org.address || "",
+          phone: org.phone || "",
+          whatsappNumber: org.whatsappNumber || org.phone || "",
+          bankAlias: org.bankAlias || org.aliasCbu || "",
+          cbuCvu: org.cbuCvu || "",
+          mpAccessToken: org.mpAccessToken || "",
+          mpPublicKey: org.mpPublicKey || "",
+          logoUrl: org.logoUrl || "/logo-icon.png",
+          signatureUrl: org.signatureUrl || "",
+          email: org.email || "",
+        },
       },
-    }, {
-      headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
-    });
+      {
+        headers: { "Cache-Control": "no-store, no-cache, must-revalidate" },
+      }
+    );
   } catch (error) {
     console.error("Error al obtener organización:", error);
-    return NextResponse.json({
-      success: true,
-      organization: {
-        id: DEFAULT_ORG_ID,
-        name: "ElectroCba - Soluciones Eléctricas",
-        slug: "electrocba",
-        legalName: "Instalador Electricista Habilitado",
-        ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
-        cuit: "20-00000000-0",
-        vatCondition: "Monotributo",
-        legalAddress: "Córdoba Capital, Provincia de Córdoba",
-        phone: "+54 9 351 000-0000",
-        whatsappNumber: "+5493510000000",
-        bankAlias: "ELECTROCBA.MP",
-        cbuCvu: "0000003100010000000000",
-        mpAccessToken: "",
-        mpPublicKey: "",
-        logoUrl: "/logo-icon.png",
-        signatureUrl: "",
-        email: "contacto@electrocba.com.ar",
-      },
-    });
+    return NextResponse.json(
+      { error: "Error al obtener la configuración de la organización" },
+      { status: 500 }
+    );
   }
 }
 
 export async function PUT(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
+    if (session.role !== "OWNER" && session.role !== "SUPERADMIN") {
+      return NextResponse.json(
+        { error: "Solo el titular de la organización puede modificar estos ajustes." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const parsed = organizationSettingsSchema.safeParse(body);
 
@@ -102,11 +77,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const session = await getSession();
-    const targetOrgId = session?.organizationId || DEFAULT_ORG_ID;
-    const currentOrg = await getOrganization(targetOrgId);
-    const orgId = currentOrg?.id || targetOrgId;
-    const updated = await updateOrganization(orgId, parsed.data);
+    const updated = await updateOrganization(session.organizationId, parsed.data);
 
     return NextResponse.json({
       success: true,
@@ -116,7 +87,7 @@ export async function PUT(req: NextRequest) {
   } catch (error) {
     console.error("Error al actualizar organización:", error);
     return NextResponse.json(
-      { error: "Error interno al guardar configuración", details: String(error) },
+      { error: "Error interno al guardar configuración" },
       { status: 500 }
     );
   }

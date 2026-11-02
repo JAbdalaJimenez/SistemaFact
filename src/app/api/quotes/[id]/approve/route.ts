@@ -7,28 +7,27 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
-/**
- * POST /api/quotes/[id]/approve
- * Aprueba un presupuesto formalmente y genera (o recupera) su Orden de Trabajo (Job).
- * Opcionalmente registra el pago de la seña inicial si el técnico lo confirma.
- */
 export async function POST(req: NextRequest, { params }: Props) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
+
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const session = await getSession();
 
-    // Verificar pertenencia del presupuesto si hay sesión activa
-    if (session?.organizationId && session.role !== "SUPERADMIN") {
-      try {
-        const quote = await prisma.quote.findUnique({
-          where: { id },
-          select: { organizationId: true },
-        });
-        if (quote && quote.organizationId !== session.organizationId) {
-          return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-        }
-      } catch {}
+    const quote = await prisma.quote.findFirst({
+      where: {
+        id,
+        organizationId: session.organizationId,
+        deletedAt: null,
+      },
+      select: { id: true, organizationId: true },
+    });
+
+    if (!quote) {
+      return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
     }
 
     const job = await convertQuoteToJob(id);
@@ -40,9 +39,8 @@ export async function POST(req: NextRequest, { params }: Props) {
       );
     }
 
-    // Si se indica acreditar la seña manualmente al momento de aprobar
     if (body?.recordDeposit && Number(body?.depositAmount) > 0) {
-      await recordPayment(job.organizationId, {
+      await recordPayment(session.organizationId, {
         jobId: job.id,
         amount: Math.round(Number(body.depositAmount)),
         paymentMethod: body.paymentMethod || "TRANSFER",
@@ -57,8 +55,6 @@ export async function POST(req: NextRequest, { params }: Props) {
     });
   } catch (error: unknown) {
     console.error("[API Approve Quote] Error:", error);
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Error al aprobar el presupuesto" }, { status: 500 });
   }
 }
-

@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST() {
-  const response = NextResponse.json(
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("Error al cerrar sesión en Supabase:", error);
+  }
+
+  return NextResponse.json(
     { success: true, message: "Sesión cerrada correctamente" },
     {
       headers: {
@@ -12,27 +19,15 @@ export async function POST() {
       },
     }
   );
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    path: "/",
-    maxAge: 0,
-    expires: new Date(0),
-    sameSite: "lax",
-  });
-  return response;
 }
 
 export async function GET(req: NextRequest) {
-  const response = NextResponse.redirect(new URL("/login", req.url));
-  response.cookies.set({
-    name: SESSION_COOKIE_NAME,
-    value: "",
-    path: "/",
-    maxAge: 0,
-    expires: new Date(0),
-    sameSite: "lax",
-  });
-  return response;
-}
+  try {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+  } catch (error) {
+    console.error("Error al cerrar sesión en Supabase:", error);
+  }
 
+  return NextResponse.redirect(new URL("/login", req.url));
+}

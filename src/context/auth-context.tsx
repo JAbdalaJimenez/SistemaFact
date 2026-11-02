@@ -9,7 +9,7 @@ import {
   ReactNode,
 } from "react";
 import { User, Session, AuthError, AuthChangeEvent } from "@supabase/supabase-js";
-import { createClient } from "@/utils/supabase/client";
+import { createClient } from "@/lib/supabase/client";
 
 interface AuthContextType {
   user: User | null;
@@ -17,7 +17,6 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string, metadata?: Record<string, any>) => Promise<{ error: AuthError | null; user: User | null }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
 }
@@ -25,32 +24,21 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabase] = useState(() => {
-    try {
-      return createClient();
-    } catch (e) {
-      console.warn("[Auth] Fallback client initialization:", e);
-      return null;
-    }
-  });
+  const [supabase] = useState(() => createClient());
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 1. Hidratación inicial e inscripción a onAuthStateChange para persistencia de sesión
   useEffect(() => {
     let isMounted = true;
-    if (!supabase) {
-      setLoading(false);
-      return;
-    }
 
     async function initAuth() {
       try {
-        // Recuperar sesión activa inicial (al recargar la página F5)
-        const { data: { session: initialSession }, error: sessionError } =
-          await supabase!.auth.getSession();
+        const {
+          data: { session: initialSession },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
         if (sessionError) {
           console.warn("[Auth] Error al recuperar sesión inicial:", sessionError.message);
@@ -61,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(initialSession?.user ?? null);
           setLoading(false);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("[Auth] Excepción inicializando sesión:", err);
         if (isMounted) {
           setLoading(false);
@@ -71,47 +59,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
 
-    // 2. Suscripción en tiempo real a los cambios de estado de autenticación
-    let subscription: { unsubscribe: () => void } | null = null;
-    try {
-      const subResult = supabase.auth.onAuthStateChange(
-        async (event: AuthChangeEvent, currentSession: Session | null) => {
-          if (!isMounted) return;
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
+        if (!isMounted) return;
 
-          setSession(currentSession);
-          setUser(currentSession?.user ?? null);
-          setLoading(false);
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        setLoading(false);
 
-          if (event === "SIGNED_IN") {
-            setError(null);
-            try {
-              if (currentSession?.user) {
-                sessionStorage.setItem("supabase_user", JSON.stringify(currentSession.user));
-              }
-            } catch {}
-          } else if (event === "SIGNED_OUT") {
-            try {
-              sessionStorage.removeItem("supabase_user");
-              sessionStorage.removeItem("electrocba_user");
-            } catch {}
-          }
+        if (event === "SIGNED_IN") {
+          setError(null);
+        } else if (event === "SIGNED_OUT") {
+          try {
+            sessionStorage.removeItem("supabase_user");
+            sessionStorage.removeItem("electrocba_user");
+          } catch {}
         }
-      );
-      subscription = subResult.data.subscription;
-    } catch (e) {
-      console.warn("[Auth] onAuthStateChange no disponible:", e);
-    }
+      }
+    );
 
     return () => {
       isMounted = false;
-      subscription?.unsubscribe();
+      subscription.unsubscribe();
     };
   }, [supabase]);
 
-  // Inicio de sesión con Supabase Auth
   const signInWithPassword = useCallback(
     async (email: string, password: string) => {
-      if (!supabase) return { error: null };
       setError(null);
       setLoading(true);
       try {
@@ -128,8 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setLoading(false);
         return { error: null };
-      } catch (err: any) {
-        const msg = err?.message || "Error inesperado de inicio de sesión";
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Error inesperado de inicio de sesión";
         setError(msg);
         setLoading(false);
         return { error: err as AuthError };
@@ -138,44 +114,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [supabase]
   );
 
-  // Registro de usuario en Supabase Auth
-  const signUp = useCallback(
-    async (email: string, password: string, metadata?: Record<string, any>) => {
-      if (!supabase) return { error: null, user: null };
-      setError(null);
-      setLoading(true);
-      try {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: {
-            data: metadata,
-          },
-        });
-
-        if (signUpError) {
-          setError(signUpError.message);
-          setLoading(false);
-          return { error: signUpError, user: null };
-        }
-
-        setLoading(false);
-        return { error: null, user: data.user };
-      } catch (err: any) {
-        const msg = err?.message || "Error al registrar la cuenta";
-        setError(msg);
-        setLoading(false);
-        return { error: err as AuthError, user: null };
-      }
-    },
-    [supabase]
-  );
-
-  // Cierre de sesión
   const signOut = useCallback(async () => {
     setLoading(true);
     try {
-      await supabase?.auth.signOut();
+      await supabase.auth.signOut();
       try {
         sessionStorage.clear();
         localStorage.removeItem("electrocba_user");
@@ -189,10 +131,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [supabase]);
 
-  // Refrescar manualmente la sesión
   const refreshSession = useCallback(async () => {
-    if (!supabase) return;
-    const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+    const {
+      data: { session: refreshedSession },
+    } = await supabase.auth.refreshSession();
     setSession(refreshedSession);
     setUser(refreshedSession?.user ?? null);
   }, [supabase]);
@@ -205,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         error,
         signInWithPassword,
-        signUp,
         signOut,
         refreshSession,
       }}
@@ -222,4 +163,3 @@ export function useAuth() {
   }
   return context;
 }
-

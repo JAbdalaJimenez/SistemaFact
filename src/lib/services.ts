@@ -1,7 +1,7 @@
 import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
-import bcrypt from "bcryptjs";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 // 1. Obtener Organización
 export async function getOrganization(orgId?: string) {
@@ -378,13 +378,15 @@ export async function convertQuoteToJob(quoteId: string) {
 /**
  * Gestión de Usuarios
  */
-export async function getUsers() {
+export async function getUsers(organizationId?: string) {
   const users = await prisma.user.findMany({
+    where: organizationId ? { organizationId } : undefined,
     orderBy: { createdAt: "desc" },
     include: { organization: true },
   });
   return users.map((u) => ({
     id: u.id,
+    authUserId: u.authUserId,
     name: u.name,
     email: u.email,
     role: u.role,
@@ -405,7 +407,6 @@ export async function createUser(data: {
   shareCurrentOrg?: boolean;
 }) {
   const normalizedEmail = data.email.toLowerCase().trim();
-  const hashedPassword = bcrypt.hashSync(data.password, 10);
 
   const existing = await prisma.user.findUnique({
     where: { email: normalizedEmail },
@@ -414,58 +415,102 @@ export async function createUser(data: {
     throw new Error("Ya existe un usuario registrado con este correo electrónico.");
   }
 
-  let assignedOrgId = data.organizationId;
-  if (!data.shareCurrentOrg || !assignedOrgId) {
-    const newOrg = await prisma.organization.create({
-      data: {
-        name: `${data.name.trim()} - Instalaciones`,
-        slug: `${data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}`,
-        legalName: data.name.trim(),
-        ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
-        ersepLicense: "Habilitación ERSeP Ley 10.281",
-        cuit: "20-00000000-0",
-        vatCondition: "Monotributo",
-        taxCondition: "Monotributo - Servicios Técnicos",
-        legalAddress: "Córdoba",
-        address: "Córdoba",
-        phone: data.phone?.trim() || "+54 9 351 000-0000",
-        whatsappNumber: data.phone?.trim() || "+5493510000000",
-        bankAlias: "",
-        cbuCvu: "",
-        aliasCbu: "",
-        currency: "ARS",
-      },
-    });
-    assignedOrgId = newOrg.id;
-  }
-
-  const user = await prisma.user.create({
-    data: {
-      name: data.name.trim(),
-      email: normalizedEmail,
-      password: hashedPassword,
-      role: data.role || "OWNER",
-      phone: data.phone?.trim(),
-      organizationId: assignedOrgId,
-    },
-    include: { organization: true },
+  // 1. Crear primero en Supabase Auth usando Service Role Key
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    email: normalizedEmail,
+    password: data.password,
+    email_confirm: true,
   });
 
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    phone: user.phone,
-    organizationId: user.organizationId,
-    organizationName: user.organization.name,
-    createdAt: user.createdAt.toISOString(),
-  };
+  if (authError || !authData?.user) {
+    throw new Error(
+      authError?.message || "No se pudo crear la cuenta en el servicio de autenticación."
+    );
+  }
+
+  const createdAuthUserId = authData.user.id;
+
+  // 2. Crear en Prisma con compensación automática si falla para no dejar huérfanos en Auth
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      let assignedOrgId = data.organizationId;
+      if (!data.shareCurrentOrg || !assignedOrgId) {
+        const newOrg = await tx.organization.create({
+          data: {
+            name: `${data.name.trim()} - Instalaciones`,
+            slug: `${data.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "-")}-${Date.now().toString().slice(-4)}`,
+            legalName: data.name.trim(),
+            ersepLicenseNumber: "Habilitación ERSeP Ley 10.281",
+            ersepLicense: "Habilitación ERSeP Ley 10.281",
+            cuit: "20-00000000-0",
+            vatCondition: "Monotributo",
+            taxCondition: "Monotributo - Servicios Técnicos",
+            legalAddress: "Córdoba",
+            address: "Córdoba",
+            phone: data.phone?.trim() || "+54 9 351 000-0000",
+            whatsappNumber: data.phone?.trim() || "+5493510000000",
+            bankAlias: "",
+            cbuCvu: "",
+            aliasCbu: "",
+            currency: "ARS",
+          },
+        });
+        assignedOrgId = newOrg.id;
+      }
+
+      return await tx.user.create({
+        data: {
+          authUserId: createdAuthUserId,
+          name: data.name.trim(),
+          email: normalizedEmail,
+          role: data.role || "OWNER",
+          phone: data.phone?.trim(),
+          organizationId: assignedOrgId,
+        },
+        include: { organization: true },
+      });
+    });
+
+    return {
+      id: user.id,
+      authUserId: user.authUserId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      organizationId: user.organizationId,
+      organizationName: user.organization.name,
+      createdAt: user.createdAt.toISOString(),
+    };
+  } catch (dbError) {
+    try {
+      await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+    } catch (rollbackError) {
+      console.error("[createUser] Error al revertir usuario en Supabase Auth:", rollbackError);
+    }
+    throw dbError;
+  }
 }
 
 export async function deleteUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error("Usuario no encontrado.");
+  }
+
   await prisma.user.delete({
     where: { id: userId },
   });
+
+  if (user.authUserId) {
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
+    if (error) {
+      console.error("[deleteUser] Aviso al eliminar usuario de Supabase Auth:", error.message);
+    }
+  }
+
   return { success: true };
 }

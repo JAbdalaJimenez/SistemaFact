@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { getJobById } from "@/lib/services";
 import { getSession } from "@/lib/auth";
@@ -27,7 +27,8 @@ export default async function JobDetailPage({ params }: Props) {
   const { id } = await params;
   const [job, session] = await Promise.all([getJobById(id), getSession()]);
 
-  if (!job || (session?.organizationId && job.organizationId !== session.organizationId && session.role !== "SUPERADMIN")) {
+  if (!session) redirect(`/login?callbackUrl=/jobs/${id}`);
+  if (!job || job.organizationId !== session.organizationId) {
     notFound();
   }
 

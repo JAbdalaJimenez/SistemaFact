@@ -7,18 +7,11 @@ import prisma from "@/lib/db";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { jobId, quoteId, amount } = body;
+    const { jobId, quoteId, publicToken } = body;
 
-    if (!jobId && !quoteId) {
+    if (!jobId && !quoteId && !publicToken) {
       return NextResponse.json(
-        { error: "Debe proporcionar jobId o quoteId" },
-        { status: 400 }
-      );
-    }
-
-    if (!amount || Number(amount) <= 0) {
-      return NextResponse.json(
-        { error: "Monto inválido para generar preferencia" },
+        { error: "Debe proporcionar jobId, quoteId o publicToken" },
         { status: 400 }
       );
     }
@@ -29,39 +22,74 @@ export async function POST(req: NextRequest) {
     let customerName = "Cliente";
     let customerPhone = "+5493510000000";
     const customerEmail = "cliente@electrocba.com.ar";
+    let calculatedAmount = 0;
+    let resolvedQuoteId: string | undefined;
 
     if (jobId) {
+      if (!session) {
+        return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+      }
       const job = await getJobById(jobId);
-      if (!job) {
+      if (!job || job.organizationId !== session.organizationId) {
         return NextResponse.json({ error: "Trabajo no encontrado" }, { status: 404 });
       }
-      orgId = job.organizationId || orgId;
+      orgId = job.organizationId;
+      calculatedAmount = job.balanceDue;
       title = `Saldo - ${job.title || "Trabajo Eléctrico"}`;
       customerName = job.customer?.name || "Cliente";
       customerPhone = job.customer?.phone || "+5493510000000";
-    } else if (quoteId) {
-      const quote = await prisma.quote.findUnique({
-        where: { id: quoteId },
+    } else {
+      if (!session && !publicToken) {
+        return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+      }
+
+      const quote = await prisma.quote.findFirst({
+        where: session
+          ? {
+              organizationId: session.organizationId,
+              OR: [
+                ...(quoteId ? [{ id: String(quoteId) }] : []),
+                ...(publicToken ? [{ publicToken: String(publicToken) }] : []),
+              ],
+              deletedAt: null,
+            }
+          : {
+              publicToken: String(publicToken),
+              deletedAt: null,
+            },
         include: { customer: true },
-      }).catch(() => null);
+      });
+
       if (!quote) {
         return NextResponse.json({ error: "Presupuesto no encontrado" }, { status: 404 });
       }
-      orgId = quote.organizationId || orgId;
-      title = `Seña 50% - ${quote.title || "Trabajo Eléctrico"}`;
+
+      orgId = quote.organizationId;
+      resolvedQuoteId = quote.id;
+      calculatedAmount = Math.round(
+        (quote.totalAmount * (quote.depositPercentage || 50)) / 100
+      );
+      title = `Seña ${quote.depositPercentage || 50}% - ${quote.title || "Trabajo Eléctrico"}`;
       customerName = quote.customer?.name || "Cliente";
       customerPhone = quote.customer?.phone || "+5493510000000";
+    }
+
+    if (calculatedAmount <= 0 || !orgId) {
+      return NextResponse.json(
+        { error: "Monto inválido para generar preferencia" },
+        { status: 400 }
+      );
     }
 
     const org = await getOrganization(orgId);
 
     const prefResult = await createPreference({
       title,
-      amount: Number(amount),
+      amount: calculatedAmount,
       organizationId: org.id,
-      accessToken: (org as any).mpAccessToken || undefined,
+      accessToken: org.mpAccessToken || undefined,
       jobId,
-      quoteId,
+      quoteId: resolvedQuoteId || quoteId,
       customerName,
       customerEmail,
     });
@@ -70,12 +98,12 @@ export async function POST(req: NextRequest) {
       phone: customerPhone,
       customerName,
       title,
-      amount: Number(amount),
+      amount: calculatedAmount,
       paymentUrl: prefResult.shortUrl,
-      type: quoteId ? "quote_deposit" : "job_balance",
+      type: resolvedQuoteId ? "quote_deposit" : "job_balance",
       organizationName: org.name,
-      electricianName: (org as any).legalName || org.name,
-      ersepLicense: (org as any).ersepLicenseNumber || (org as any).ersepLicense,
+      electricianName: org.legalName || org.name,
+      ersepLicense: org.ersepLicenseNumber || org.ersepLicense || undefined,
     });
 
     return NextResponse.json({
@@ -85,13 +113,13 @@ export async function POST(req: NextRequest) {
       sandboxInitPoint: prefResult.sandboxInitPoint,
       shortUrl: prefResult.shortUrl,
       whatsappUrl,
-      amount: Number(amount),
+      amount: calculatedAmount,
       title,
     });
   } catch (error: unknown) {
     console.error("Error al crear preferencia de Mercado Pago:", error);
     return NextResponse.json(
-      { error: "Error interno al procesar pago con Mercado Pago", details: String(error) },
+      { error: "Error interno al procesar pago con Mercado Pago" },
       { status: 500 }
     );
   }

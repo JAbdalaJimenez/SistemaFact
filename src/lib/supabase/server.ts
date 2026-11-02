@@ -2,7 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { publicEnv } from "@/lib/env.public";
 
-export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) => {
+export const createClient = async (
+  cookieStoreParam?: Awaited<ReturnType<typeof cookies>>
+) => {
+  const cookieStore = cookieStoreParam ?? (await cookies());
+
   return createServerClient(
     publicEnv.NEXT_PUBLIC_SUPABASE_URL,
     publicEnv.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
@@ -25,3 +29,4 @@ export const createClient = (cookieStore: Awaited<ReturnType<typeof cookies>>) =
     }
   );
 };
+

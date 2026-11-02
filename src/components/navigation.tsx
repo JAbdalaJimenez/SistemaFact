@@ -4,8 +4,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
-  Zap,
   LayoutDashboard,
   Users,
   FileText,
@@ -19,6 +19,7 @@ import {
 
 interface CurrentUser {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: "SUPERADMIN" | "OWNER" | "MEMBER";
@@ -45,7 +46,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
   }, [initialUser]);
 
   useEffect(() => {
-    // Sincronizar siempre con el endpoint de sesión para evitar datos viejos en sessionStorage
     fetch("/api/auth/me", { cache: "no-store" })
       .then((res) => {
         if (res.ok) return res.json();
@@ -66,7 +66,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
       })
       .catch(() => {});
 
-    // Precargar rutas críticas en segundo plano para respuesta táctil instantánea (0ms)
     try {
       router.prefetch("/dashboard/settings");
       router.prefetch("/dashboard/users");
@@ -74,31 +73,25 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
     } catch {}
   }, [router]);
 
-  const handleLogout = () => {
-    // 1. Destrucción síncrona inmediata en el navegador (0ms)
+  const handleLogout = async () => {
     try {
       sessionStorage.clear();
       localStorage.removeItem("electrocba_user");
-      document.cookie = "electrocba_session=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0; SameSite=Lax;";
     } catch {}
     setUser(null);
 
-    // 2. Notificación en segundo plano al servidor (fire & forget, nunca traba la UI)
     try {
-      if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-        navigator.sendBeacon("/api/auth/logout");
-      } else {
-        fetch("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
-      }
-    } catch {
-      fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    }
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
 
-    // 3. Salida inmediata a login sin demoras
+    try {
+      await fetch("/api/auth/logout", { method: "POST", keepalive: true });
+    } catch {}
+
     window.location.replace("/login");
   };
 
-  // No mostrar navegación en páginas públicas como /login, /p/[token] o checkout
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/p/") ||
@@ -109,7 +102,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
 
   const isSuperadmin = user?.role === "SUPERADMIN";
 
-  // Navegación para pantallas grandes (Desktop)
   const desktopNavLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/customers", label: "Clientes", icon: Users },
@@ -122,7 +114,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
     { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
   ];
 
-  // Navegación móvil simétrica (5 ítems) con el botón [+] exactamente en el centro
   const mobileNavLinks = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/customers", label: "Clientes", icon: Users },
@@ -133,7 +124,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
 
   return (
     <>
-      {/* HEADER SUPERIOR (Mobile y Desktop) - Architectural Executive */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-[#E2E8F0]">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/dashboard" prefetch={true} className="flex items-center space-x-2 sm:space-x-3 group min-w-0">
@@ -160,7 +150,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
             </div>
           </Link>
 
-          {/* PERFIL, USUARIOS (SUPERADMIN), AJUSTES Y BOTÓN LOGOUT */}
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
             <div className="hidden sm:block text-right">
               <div className="flex items-center justify-end gap-1.5" suppressHydrationWarning>
@@ -218,7 +207,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
         </div>
       </header>
 
-      {/* BARRA DE NAVEGACIÓN INFERIOR (5 Columnas Simétricas - Botón [+] en el Centro) */}
       <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/98 backdrop-blur border-t border-[#E2E8F0] pb-safe shadow-md">
         <div className="grid grid-cols-5 h-16 items-center px-1 max-w-md mx-auto">
           {mobileNavLinks.map((item) => {
@@ -270,7 +258,6 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
         </div>
       </nav>
 
-      {/* MENÚ DE ESCRITORIO (Subheader horizontal - Corporate Authority) */}
       <div className="hidden sm:block bg-[#0B132B] text-white border-b border-[#1C2541]">
         <div className="max-w-5xl mx-auto px-4 flex items-center justify-between">
           <div className="flex items-center space-x-1">
