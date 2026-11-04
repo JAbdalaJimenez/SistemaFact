@@ -9,15 +9,48 @@
  */
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { encryptSecret } from "../src/lib/crypto";
+import crypto from "crypto";
+import {
+  ENCRYPTION_PREFIX,
+  encryptSecretWithMasterKey,
+} from "../src/lib/crypto-core";
 
 const prisma = new PrismaClient();
 
-const ENCRYPTION_PREFIX = "enc:v1:";
+function getScriptMasterKey(): Buffer {
+  const envKey = process.env.ENCRYPTION_KEY?.trim();
+  if (envKey) {
+    if (!/^[0-9a-fA-F]{64}$/.test(envKey)) {
+      throw new Error(
+        "[EncryptTokens] ENCRYPTION_KEY inválida: debe tener exactamente 64 caracteres hexadecimales (32 bytes)."
+      );
+    }
+    return Buffer.from(envKey, "hex");
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "[EncryptTokens] En producción, ENCRYPTION_KEY (64 hex) es estrictamente obligatoria."
+    );
+  }
+
+  const fallbackKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!fallbackKey) {
+    throw new Error(
+      "[EncryptTokens] Debe definir ENCRYPTION_KEY o SUPABASE_SERVICE_ROLE_KEY en el archivo de entorno."
+    );
+  }
+
+  console.warn(
+    "[EncryptTokens] AVISO: ENCRYPTION_KEY no definida; derivando clave desde SUPABASE_SERVICE_ROLE_KEY."
+  );
+  return crypto.createHash("sha256").update(fallbackKey).digest();
+}
 
 async function main() {
   const hasYesFlag = process.argv.includes("--yes");
   const isDryRun = !hasYesFlag;
+  const masterKey = getScriptMasterKey();
 
   console.log(
     `[EncryptTokens] Iniciando escaneo de organizaciones (${isDryRun ? "MODO SIMULACIÓN (DRY-RUN)" : "MODO REAL (--yes)"})...`
@@ -58,10 +91,10 @@ async function main() {
     if (!isDryRun) {
       const updateData: { mpAccessToken?: string; mpWebhookSecret?: string } = {};
       if (needsTokenEncryption && rawToken) {
-        updateData.mpAccessToken = encryptSecret(rawToken);
+        updateData.mpAccessToken = encryptSecretWithMasterKey(rawToken, masterKey);
       }
       if (needsSecretEncryption && rawSecret) {
-        updateData.mpWebhookSecret = encryptSecret(rawSecret);
+        updateData.mpWebhookSecret = encryptSecretWithMasterKey(rawSecret, masterKey);
       }
 
       await prisma.organization.update({
@@ -99,4 +132,3 @@ main()
     await prisma.$disconnect();
     process.exit(1);
   });
-

@@ -58,6 +58,8 @@ cp .env.example .env.local
 
 ### 3. Aplicar migraciones y generar cliente Prisma
 
+> **Nota sobre `DIRECT_URL`**: Prisma Migrate requiere conexión directa a PostgreSQL (puerto 5432) sin pasar por el pooler de transacciones (puerto 6543). Asegúrese de configurar `DIRECT_URL` en su archivo `.env`.
+
 **En una base de datos nueva (vacía)**:
 ```bash
 npx prisma migrate deploy
@@ -65,11 +67,12 @@ npx prisma generate
 ```
 
 **En una base de datos existente (creada previamente con `db push` o `supabase_init.sql`)**:
+El orden obligatorio es marcar el baseline inicial y luego aplicar las migraciones incrementales:
 1. Marcar la migración baseline inicial como ya aplicada para que Prisma no intente recrear las tablas existentes:
    ```bash
    npx prisma migrate resolve --applied 20260101000000_baseline
    ```
-2. Aplicar las migraciones incrementales posteriores (`20261102164500_add_auth_user_id_to_users`, etc.):
+2. Aplicar las migraciones incrementales posteriores (`add_auth_user_id_to_users`, `unique_mp_payment_id`, `add_mp_webhook_secret`, `enable_rls_all_tables`):
    ```bash
    npx prisma migrate deploy
    npx prisma generate

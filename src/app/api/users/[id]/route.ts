@@ -60,7 +60,12 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
     await deleteUser(id);
     return NextResponse.json({ success: true, message: "Usuario dado de baja exitosamente" });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error al dar de baja al usuario";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    console.error("Error al dar de baja al usuario:", error);
+    const rawMsg = error instanceof Error ? error.message : "";
+    const isSafeMessage = rawMsg.includes("no encontrado");
+    return NextResponse.json(
+      { error: isSafeMessage ? rawMsg : "Error al procesar la baja del usuario" },
+      { status: 400 }
+    );
   }
 }

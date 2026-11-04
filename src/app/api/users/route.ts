@@ -4,11 +4,11 @@ import { getUsers, createUser } from "@/lib/services";
 import { z } from "zod";
 
 const createUserSchema = z.object({
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-  email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(100),
+  email: z.string().trim().email("Correo electrónico inválido").max(100),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres").max(100),
   role: z.enum(["SUPERADMIN", "OWNER", "MEMBER"]).default("MEMBER"),
-  phone: z.string().optional(),
+  phone: z.string().trim().max(25).optional(),
   shareCurrentOrg: z.boolean().optional(),
 });
 
@@ -98,7 +98,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, user: newUser }, { status: 201 });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error al crear el usuario";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    console.error("Error al crear usuario:", error);
+    const rawMsg = error instanceof Error ? error.message : "";
+    const isSafeMessage =
+      rawMsg.includes("Ya existe") ||
+      rawMsg.includes("inválido") ||
+      rawMsg.includes("caracteres");
+    return NextResponse.json(
+      { error: isSafeMessage ? rawMsg : "Error al procesar el alta de usuario" },
+      { status: 400 }
+    );
   }
 }

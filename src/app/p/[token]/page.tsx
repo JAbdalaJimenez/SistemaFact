@@ -1,22 +1,16 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
-import { getQuoteByPublicToken } from "@/lib/services";
+import { getSanitizedPublicQuote } from "@/lib/public-quote";
 import { formatCurrencyARS, formatDate } from "@/lib/types";
 import { PublicQuoteClient } from "./client";
 import {
   ShieldCheck,
-  Zap,
   Phone,
   MapPin,
   Calendar,
-  FileText,
   Hammer,
   Package,
-  Building2,
-  FileCheck2,
   CheckCircle2,
   Clock,
-  Layers,
 } from "lucide-react";
 
 interface Props {
@@ -25,7 +19,7 @@ interface Props {
 
 export default async function PublicQuotePage({ params }: Props) {
   const { token } = await params;
-  const quote: any = await getQuoteByPublicToken(token);
+  const quote = await getSanitizedPublicQuote(token);
 
   if (!quote) {
     notFound();
@@ -35,16 +29,15 @@ export default async function PublicQuotePage({ params }: Props) {
   const depositAmount = Math.round((quote.totalAmount * depositPercent) / 100);
   const remainingAmount = quote.totalAmount - depositAmount;
 
-  const quoteNum = quote.quoteNumber || `EC-${quote.id.slice(-6).toUpperCase()}`;
+  const quoteNum = quote.quoteNumber;
 
   // Discriminación de partidas: Mano de Obra vs Materiales
-  const laborItems = (quote.items || []).filter((i: any) => i.itemType !== "MATERIALS");
-  const materialItems = (quote.items || []).filter((i: any) => i.itemType === "MATERIALS");
+  const laborItems = quote.items.filter((i) => i.itemType !== "MATERIALS");
+  const materialItems = quote.items.filter((i) => i.itemType === "MATERIALS");
 
-  const laborSubtotal = laborItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0);
-  const materialsSubtotal = materialItems.reduce((acc: number, curr: any) => acc + curr.subtotal, 0);
+  const laborSubtotal = laborItems.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const materialsSubtotal = materialItems.reduce((acc, curr) => acc + curr.subtotal, 0);
 
-  // Helper para dividir título de tarea de especificación técnica
   const parseItemDetail = (text: string) => {
     if (text.includes(":")) {
       const parts = text.split(":");
@@ -56,18 +49,15 @@ export default async function PublicQuotePage({ params }: Props) {
     return { prefix: "", title: text };
   };
 
-  const isPaid =
-    quote.status === "APPROVED" ||
-    quote.status === "CONVERTED" ||
-    Boolean(quote.job?.payments && quote.job.payments.some((p: any) => p.status === "APPROVED"));
+  const isPaid = quote.isPaid;
 
-  const orgName = quote.organization?.name || "ElectroCba";
-  const orgLegalName = quote.organization?.legalName || orgName;
-  const ersepLicense = quote.organization?.ersepLicenseNumber || quote.organization?.ersepLicense || "Matrícula Habilitada ERSeP";
-  const cuit = quote.organization?.cuit || "No informado";
-  const vatCondition = quote.organization?.vatCondition || quote.organization?.taxCondition || "Monotributo";
-  const legalAddress = quote.organization?.legalAddress || quote.organization?.address || "Córdoba Capital";
-  const electricianPhone = quote.organization?.whatsappNumber || quote.organization?.phone || "+5493510000000";
+  const orgName = quote.organization.name;
+  const orgLegalName = quote.organization.legalName || orgName;
+  const ersepLicense = quote.organization.ersepLicenseNumber || "Matrícula Habilitada ERSeP";
+  const cuit = quote.organization.cuit || "No informado";
+  const vatCondition = quote.organization.vatCondition || "Monotributo";
+  const legalAddress = quote.organization.legalAddress || "Córdoba Capital";
+  const electricianPhone = quote.organization.whatsappNumber || quote.organization.phone || "+5493510000000";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] py-6 sm:py-10 px-3 sm:px-6 font-sans">
@@ -84,7 +74,7 @@ export default async function PublicQuotePage({ params }: Props) {
                 <div className="w-12 h-12 rounded-xl bg-[#1C2541] border border-[#C5A059]/40 flex items-center justify-center p-1.5 shrink-0 overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={quote.organization?.logoUrl || "/logo-icon.png"}
+                    src={quote.organization.logoUrl || "/logo-icon.png"}
                     alt={orgName}
                     width={44}
                     height={44}
@@ -158,16 +148,16 @@ export default async function PublicQuotePage({ params }: Props) {
                 Destinatario de la Propuesta
               </span>
               <h2 className="text-base sm:text-lg font-semibold text-[#0F172A]">
-                {quote.customer?.name}
+                {quote.customer.name}
               </h2>
               <div className="text-xs text-[#64748B] flex flex-wrap items-center gap-x-4 gap-y-1">
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                  {quote.customer?.address} ({quote.customer?.neighborhood}, Córdoba)
+                  {quote.customer.address} ({quote.customer.neighborhood}, Córdoba)
                 </span>
                 <span className="flex items-center gap-1 tabular-nums">
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
-                  {quote.customer?.phone}
+                  {quote.customer.phone}
                 </span>
               </div>
             </div>
@@ -177,7 +167,7 @@ export default async function PublicQuotePage({ params }: Props) {
                 Obra Dictaminada
               </span>
               <p className="text-xs sm:text-sm font-semibold text-[#0F172A]">
-                {quote.title || "Adecuación Eléctrica Integral"}
+                {quote.title}
               </p>
               <p className="text-[10px] text-[#64748B]">
                 Revisión conforme a especificación AEA 90364
@@ -211,7 +201,7 @@ export default async function PublicQuotePage({ params }: Props) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E2E8F0]/70">
-                  {laborItems.map((item: any, idx: number) => {
+                  {laborItems.map((item, idx) => {
                     const parsed = parseItemDetail(item.description);
                     return (
                       <tr key={item.id || idx} className="hover:bg-[#F8FAFC] transition-colors">
@@ -266,7 +256,7 @@ export default async function PublicQuotePage({ params }: Props) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E2E8F0]/70">
-                    {materialItems.map((item: any, idx: number) => {
+                    {materialItems.map((item, idx) => {
                       const parsed = parseItemDetail(item.description);
                       return (
                         <tr key={item.id || idx} className="hover:bg-[#F8FAFC] transition-colors">
@@ -319,7 +309,7 @@ export default async function PublicQuotePage({ params }: Props) {
                 </div>
               )}
 
-              {/* TOTAL DESTACADO EN CHAMPAGNE WARM GOLD Y DEEP OBSIDIAN */}
+              {/* TOTAL DESTACADO */}
               <div className="pt-2 border-t border-[#E2E8F0] flex justify-between items-baseline">
                 <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-[#0F172A]">
                   Importe Total:
@@ -329,7 +319,7 @@ export default async function PublicQuotePage({ params }: Props) {
                 </span>
               </div>
 
-              {/* CONDICIONES DE SEÑA 50% */}
+              {/* CONDICIONES DE SEÑA */}
               <div className="bg-white border border-[#E2E8F0] p-3 rounded-lg space-y-1 mt-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-[#15803D] flex items-center gap-1">
@@ -353,7 +343,7 @@ export default async function PublicQuotePage({ params }: Props) {
             </div>
           </div>
 
-          {/* BLOQUE DE CONDICIONES CONTRACTUALES Y LEGAL TECH (ERSEP CÓRDOBA Y LEY 24.240) */}
+          {/* BLOQUE DE CONDICIONES CONTRACTUALES Y LEGAL TECH */}
           <div className="bg-[#FAF8F5] border border-[#EADFC7] rounded-xl p-5 space-y-2.5">
             <div className="flex items-center justify-between border-b border-[#EADFC7] pb-2">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#9A6E24] flex items-center gap-1.5">
@@ -375,26 +365,26 @@ export default async function PublicQuotePage({ params }: Props) {
             </div>
           </div>
 
-          {/* BARRA DE ACCIONES EJECUTIVAS: MERCADO PAGO, WHATSAPP Y EXPORTACIÓN */}
+          {/* BARRA DE ACCIONES EJECUTIVAS */}
           <PublicQuoteClient
             quoteId={quote.id}
             publicToken={quote.publicToken}
             quoteNumber={quoteNum}
-            title={quote.title || "Trabajo Eléctrico"}
+            title={quote.title}
             totalAmount={quote.totalAmount}
             depositAmount={depositAmount}
             depositPercentage={depositPercent}
-            validityDays={quote.validityDays || 15}
-            customerName={quote.customer?.name || "Cliente"}
-            customerPhone={quote.customer?.phone || ""}
+            validityDays={quote.validityDays}
+            customerName={quote.customer.name}
+            customerPhone={quote.customer.phone}
             electricianPhone={electricianPhone}
             status={quote.status}
             isPaid={isPaid}
             organizationName={orgName}
             electricianLegalName={orgLegalName}
             ersepLicense={ersepLicense}
-            bankAlias={quote.organization?.bankAlias || quote.organization?.aliasCbu}
-            cbuCvu={quote.organization?.cbuCvu}
+            bankAlias={quote.organization.bankAlias || undefined}
+            cbuCvu={quote.organization.cbuCvu || undefined}
           />
         </div>
       </div>
