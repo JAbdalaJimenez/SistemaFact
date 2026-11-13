@@ -33,7 +33,7 @@ export function MetricsDashboard({ initialData }: { initialData: PlatformMetrics
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/metrics?range=${next}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/dashboard?timeframe=${next}`, { cache: "no-store" });
       if (!res.ok) throw new Error(res.status === 403 ? "Sin permisos" : "No se pudieron cargar las métricas");
       setData((await res.json()) as PlatformMetrics);
     } catch (e) {
