@@ -81,3 +81,4 @@ describe("crypto-core (AES-256-GCM y HKDF)", () => {
     expect(verified).toBeNull();
   });
 });
+

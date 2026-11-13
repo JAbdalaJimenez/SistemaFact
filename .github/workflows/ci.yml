@@ -68,3 +68,4 @@ jobs:
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
           MERCADO_PAGO_WEBHOOK_SECRET: test_webhook_secret_key_1234567890
+

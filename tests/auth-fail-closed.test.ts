@@ -83,3 +83,4 @@ describe("Fail-closed Authentication and Session Guards", () => {
     expect(session.role).toBe("OWNER");
   });
 });
+
