@@ -47,32 +47,41 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
   }, [initialUser]);
 
   useEffect(() => {
-    fetch("/api/auth/me", { cache: "no-store" })
-      .then((res) => {
-        if (res.ok) return res.json();
-        return null;
-      })
-      .then((data) => {
-        if (data?.authenticated && data?.user) {
-          setUser(data.user);
-          try {
-            sessionStorage.setItem("electrocba_user", JSON.stringify(data.user));
-          } catch {}
-        } else if (data && !data.authenticated) {
-          setUser(null);
-          try {
-            sessionStorage.removeItem("electrocba_user");
-          } catch {}
-        }
-      })
-      .catch(() => {});
+    if (!initialUser) {
+      fetch("/api/auth/me", { cache: "no-store" })
+        .then((res) => {
+          if (res.ok) return res.json();
+          return null;
+        })
+        .then((data) => {
+          if (data?.authenticated && data?.user) {
+            setUser(data.user);
+            try {
+              sessionStorage.setItem("electrocba_user", JSON.stringify(data.user));
+            } catch {}
+          } else if (data && !data.authenticated) {
+            setUser(null);
+            try {
+              sessionStorage.removeItem("electrocba_user");
+            } catch {}
+          }
+        })
+        .catch(() => {});
+    }
 
     try {
+      router.prefetch("/dashboard");
+      router.prefetch("/quotes");
+      router.prefetch("/customers");
+      router.prefetch("/jobs");
       router.prefetch("/dashboard/settings");
       router.prefetch("/dashboard/users");
+      if (initialUser?.role === "SUPERADMIN") {
+        router.prefetch("/admin/metrics");
+      }
       router.prefetch("/login");
     } catch {}
-  }, [router]);
+  }, [router, initialUser]);
 
   const handleLogout = async () => {
     try {

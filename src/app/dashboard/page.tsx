@@ -26,7 +26,7 @@ export default async function DashboardPage() {
   const orgId = session.organizationId;
   const [metrics, org] = await Promise.all([
     getDashboardMetrics(orgId),
-    getOrganization(orgId),
+    session.organization ? Promise.resolve(session.organization) : getOrganization(orgId),
   ]);
 
   const isSuperadmin = session?.role === "SUPERADMIN";

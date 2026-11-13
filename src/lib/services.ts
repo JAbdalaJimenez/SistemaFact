@@ -76,73 +76,113 @@ export async function updateOrganization(
   });
 }
 
-// 2. Métricas del Dashboard Operativo
+// 2. Métricas del Dashboard Operativo (1 sola consulta SQL CTE)
+interface DashboardActivityRow {
+  id: string;
+  type: "quote" | "job";
+  title: string;
+  customer: string;
+  amount: number;
+  status: string;
+  date: string;
+  link: string;
+}
+
+interface DashboardMetricsRow {
+  balance_pending: bigint | number;
+  quotes_pending: bigint | number;
+  active_jobs_week: bigint | number;
+  total_collected: bigint | number;
+  recent_activity: DashboardActivityRow[] | null;
+}
+
 export async function getDashboardMetrics(organizationId: string) {
   if (!organizationId) {
     throw new Error("organizationId es obligatorio");
   }
 
-  const [jobs, quotes, payments] = await Promise.all([
-    prisma.job.findMany({
-      where: { organizationId, deletedAt: null },
-      include: { customer: true },
-    }),
-    prisma.quote.findMany({
-      where: { organizationId, deletedAt: null },
-      include: { customer: true },
-    }),
-    prisma.payment.findMany({
-      where: { organizationId, status: "APPROVED" },
-      orderBy: { createdAt: "desc" },
-      take: 5,
-    }),
-  ]);
+  const rows = await prisma.$queryRaw<DashboardMetricsRow[]>`
+    WITH
+      job_stats AS (
+        SELECT
+          COALESCE(SUM("balanceDue") FILTER (WHERE status <> 'CANCELLED'), 0)::bigint AS balance_pending,
+          COUNT(*) FILTER (WHERE status IN ('SCHEDULED', 'IN_PROGRESS'))::bigint AS active_jobs_week
+        FROM jobs
+        WHERE "organizationId" = ${organizationId} AND "deletedAt" IS NULL
+      ),
+      quote_stats AS (
+        SELECT COUNT(*) FILTER (WHERE status IN ('SENT', 'DRAFT'))::bigint AS quotes_pending
+        FROM quotes
+        WHERE "organizationId" = ${organizationId} AND "deletedAt" IS NULL
+      ),
+      payment_stats AS (
+        SELECT COALESCE(SUM(amount), 0)::bigint AS total_collected
+        FROM (
+          SELECT amount FROM payments
+          WHERE "organizationId" = ${organizationId} AND status = 'APPROVED'
+          ORDER BY "createdAt" DESC
+          LIMIT 5
+        ) p
+      ),
+      recent_quotes AS (
+        SELECT
+          q.id,
+          'quote'::text AS type,
+          COALESCE(NULLIF(q.title, ''), 'Presupuesto a ' || c.name) AS title,
+          c.name AS customer,
+          q."totalAmount" AS amount,
+          q.status::text AS status,
+          to_char(q."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS date,
+          '/quotes'::text AS link,
+          q."createdAt" AS sort_at
+        FROM quotes q
+        JOIN customers c ON c.id = q."customerId"
+        WHERE q."organizationId" = ${organizationId} AND q."deletedAt" IS NULL
+        ORDER BY q."createdAt" DESC
+        LIMIT 3
+      ),
+      recent_jobs AS (
+        SELECT
+          j.id,
+          'job'::text AS type,
+          j.title AS title,
+          c.name AS customer,
+          j."totalAmount" AS amount,
+          j.status::text AS status,
+          to_char(j."createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS date,
+          ('/jobs/' || j.id)::text AS link,
+          j."createdAt" AS sort_at
+        FROM jobs j
+        JOIN customers c ON c.id = j."customerId"
+        WHERE j."organizationId" = ${organizationId} AND j."deletedAt" IS NULL
+        ORDER BY j."createdAt" DESC
+        LIMIT 3
+      ),
+      recent AS (
+        SELECT id, type, title, customer, amount, status, date, link
+        FROM (
+          SELECT * FROM recent_quotes
+          UNION ALL
+          SELECT * FROM recent_jobs
+        ) combined
+        ORDER BY sort_at DESC
+        LIMIT 5
+      )
+    SELECT
+      (SELECT balance_pending FROM job_stats) AS balance_pending,
+      (SELECT quotes_pending FROM quote_stats) AS quotes_pending,
+      (SELECT active_jobs_week FROM job_stats) AS active_jobs_week,
+      (SELECT total_collected FROM payment_stats) AS total_collected,
+      (SELECT COALESCE(json_agg(recent), '[]'::json) FROM recent) AS recent_activity
+  `;
 
-  const balancePending = jobs
-    .filter((j) => j.status !== "CANCELLED")
-    .reduce((acc, curr) => acc + curr.balanceDue, 0);
-
-  const quotesPending = quotes.filter(
-    (q) => q.status === "SENT" || q.status === "DRAFT"
-  ).length;
-
-  const activeJobsWeek = jobs.filter(
-    (j) => j.status === "SCHEDULED" || j.status === "IN_PROGRESS"
-  ).length;
-
-  const totalCollected = payments.reduce((acc, curr) => acc + curr.amount, 0);
-
-  const recentActivity = [
-    ...quotes.slice(0, 3).map((q) => ({
-      id: q.id,
-      type: "quote" as const,
-      title: q.title || `Presupuesto a ${q.customer.name}`,
-      customer: q.customer.name,
-      amount: q.totalAmount,
-      status: q.status,
-      date: q.createdAt.toISOString(),
-      link: `/quotes`,
-    })),
-    ...jobs.slice(0, 3).map((j) => ({
-      id: j.id,
-      type: "job" as const,
-      title: j.title,
-      customer: j.customer.name,
-      amount: j.totalAmount,
-      status: j.status,
-      date: j.createdAt.toISOString(),
-      link: `/jobs/${j.id}`,
-    })),
-  ]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5);
-
+  const row = rows[0];
   return {
-    balancePending,
-    quotesPending,
-    activeJobsWeek,
-    totalCollected,
-    recentActivity,
+    balancePending: Number(row?.balance_pending ?? 0),
+    quotesPending: Number(row?.quotes_pending ?? 0),
+    activeJobsWeek: Number(row?.active_jobs_week ?? 0),
+    totalCollected: Number(row?.total_collected ?? 0),
+    recentActivity: Array.isArray(row?.recent_activity) ? row.recent_activity : [],
   };
 }
 

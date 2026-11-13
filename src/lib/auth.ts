@@ -1,7 +1,20 @@
+import { cache } from "react";
 import prisma from "./db";
 import { createClient } from "@/lib/supabase/server";
 
 export type AppUserRole = "SUPERADMIN" | "OWNER" | "MEMBER";
+
+export interface SessionOrganizationSummary {
+  id: string;
+  name: string;
+  ersepLicenseNumber: string | null;
+  ersepLicense: string | null;
+  legalAddress: string | null;
+  address: string | null;
+  vatCondition: string;
+  taxCondition: string;
+  logoUrl: string | null;
+}
 
 export interface SessionUser {
   id: string;
@@ -13,6 +26,7 @@ export interface SessionUser {
   organizationId: string;
   organizationName: string;
   ersepLicense: string;
+  organization?: SessionOrganizationSummary;
 }
 
 export class UnauthorizedError extends Error {
@@ -31,13 +45,7 @@ export class ForbiddenError extends Error {
   }
 }
 
-/**
- * Obtiene la sesión actual revalidando el token contra Supabase Auth (`getUser()`)
- * y buscando la fila `User` vinculada por `authUserId` en Prisma.
- * Si el usuario existe en Supabase Auth pero no tiene fila `User` u `organizationId` en Prisma,
- * cierra la sesión huérfana y devuelve `null`.
- */
-export async function getSession(): Promise<SessionUser | null> {
+async function resolveSessionUncached(): Promise<SessionUser | null> {
   try {
     const supabase = await createClient();
     const {
@@ -51,7 +59,21 @@ export async function getSession(): Promise<SessionUser | null> {
 
     const dbUser = await prisma.user.findUnique({
       where: { authUserId: authUser.id },
-      include: { organization: true },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            ersepLicenseNumber: true,
+            ersepLicense: true,
+            legalAddress: true,
+            address: true,
+            vatCondition: true,
+            taxCondition: true,
+            logoUrl: true,
+          },
+        },
+      },
     });
 
     if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
@@ -74,10 +96,25 @@ export async function getSession(): Promise<SessionUser | null> {
         dbUser.organization.ersepLicenseNumber ||
         dbUser.organization.ersepLicense ||
         "Matrícula Habilitada ERSeP",
+      organization: dbUser.organization,
     };
   } catch {
     return null;
   }
+}
+
+const resolveSessionCached = cache(resolveSessionUncached);
+
+/**
+ * Obtiene la sesión actual revalidando el token contra Supabase Auth (`getUser()`)
+ * y buscando la fila `User` vinculada por `authUserId` en Prisma.
+ * Deduplicado por request en producción/desarrollo mediante React `cache()`.
+ */
+export async function getSession(): Promise<SessionUser | null> {
+  if (process.env.NODE_ENV === "test") {
+    return resolveSessionUncached();
+  }
+  return resolveSessionCached();
 }
 
 /**
@@ -97,7 +134,21 @@ export async function requireSession(): Promise<SessionUser> {
 
   const dbUser = await prisma.user.findUnique({
     where: { authUserId: authUser.id },
-    include: { organization: true },
+    include: {
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          ersepLicenseNumber: true,
+          ersepLicense: true,
+          legalAddress: true,
+          address: true,
+          vatCondition: true,
+          taxCondition: true,
+          logoUrl: true,
+        },
+      },
+    },
   });
 
   if (!dbUser || !dbUser.organizationId || !dbUser.organization) {
@@ -120,5 +171,6 @@ export async function requireSession(): Promise<SessionUser> {
       dbUser.organization.ersepLicenseNumber ||
       dbUser.organization.ersepLicense ||
       "Matrícula Habilitada ERSeP",
+    organization: dbUser.organization,
   };
 }

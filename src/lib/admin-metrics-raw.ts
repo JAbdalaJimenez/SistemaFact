@@ -1,10 +1,11 @@
 import prisma from "./db";
-import type {
-  MetricsRange,
-  PlatformMetrics,
-  RankedMaterial,
-  RankedUser,
-  UsagePoint,
+import {
+  METRICS_RANGES,
+  type MetricsRange,
+  type PlatformMetrics,
+  type RankedMaterial,
+  type RankedUser,
+  type UsagePoint,
 } from "./admin-metrics-types";
 
 const HOUR = 60 * 60 * 1000;
@@ -46,11 +47,11 @@ function buildBuckets(range: MetricsRange, now: Date) {
       customers: 0,
     });
   }
-  // Inicio real (UTC) del primer balde
   return { start: new Date(keys[0] + AR_OFFSET), keys, points };
 }
 
-interface RawCteRow {
+interface RawAllRow {
+  range_key: MetricsRange;
   active_orgs: bigint | number;
   gmv: bigint | number;
   total_quotes: bigint | number;
@@ -61,98 +62,21 @@ interface RawCteRow {
   top_users_json: Array<{ id: string; name: string; quotes: number; total: number }> | null;
 }
 
-export async function getPlatformMetricsRaw(range: MetricsRange): Promise<PlatformMetrics> {
-  const now = new Date();
-  const { start, keys, points } = buildBuckets(range, now);
-  const activityStart = new Date(now.getTime() - RANGE_CONFIG[range].days * DAY);
-  const unit = range === "daily" ? "hour" : "day";
-
-  const rows = await prisma.$queryRaw<RawCteRow[]>`
-    WITH
-      active_orgs AS (
-        SELECT COUNT(*)::bigint AS total FROM (
-          SELECT "organizationId" FROM quotes
-            WHERE "createdAt" >= ${activityStart} AND "deletedAt" IS NULL
-          UNION
-          SELECT "organizationId" FROM customers
-            WHERE "createdAt" >= ${activityStart} AND "deletedAt" IS NULL
-        ) t
-      ),
-      quote_totals AS (
-        SELECT
-          COALESCE(SUM(q."totalAmount"), 0)::bigint AS gmv,
-          COUNT(*)::bigint AS total_quotes,
-          COUNT(*) FILTER (WHERE EXISTS (
-            SELECT 1 FROM jobs j
-            JOIN payments p ON p."jobId" = j.id
-            WHERE j."quoteId" = q.id
-              AND p."paymentMethod" = 'MERCADO_PAGO'
-              AND p.status = 'APPROVED'
-          ))::bigint AS paid_quotes
-        FROM quotes q
-        WHERE q."createdAt" >= ${start} AND q."deletedAt" IS NULL
-      ),
-      growth AS (
-        SELECT
-          date_trunc(${unit}, ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${AR_TZ}) AS bucket,
-          COUNT(*)::int AS total
-        FROM customers
-        WHERE "createdAt" >= ${start} AND "deletedAt" IS NULL
-        GROUP BY 1
-      ),
-      exports AS (
-        SELECT format::text AS format, COUNT(*)::int AS total
-        FROM export_events
-        WHERE "createdAt" >= ${start}
-        GROUP BY format
-      ),
-      materials AS (
-        SELECT
-          MIN(TRIM(regexp_replace(qi.description, '[[:space:]]+', ' ', 'g'))) AS name,
-          COALESCE(SUM(qi.quantity), 0)::int AS quantity,
-          COUNT(*)::int AS quotes
-        FROM quote_items qi
-        JOIN quotes q ON q.id = qi."quoteId"
-        WHERE qi."itemType" = 'MATERIALS'
-          AND q."createdAt" >= ${start} AND q."deletedAt" IS NULL
-        GROUP BY LOWER(TRIM(regexp_replace(qi.description, '[[:space:]]+', ' ', 'g')))
-        ORDER BY quantity DESC
-        LIMIT 5
-      ),
-      top_users AS (
-        SELECT
-          q."organizationId" AS id,
-          o.name AS name,
-          COUNT(*)::int AS quotes,
-          COALESCE(SUM(q."totalAmount"), 0)::bigint AS total
-        FROM quotes q
-        JOIN organizations o ON o.id = q."organizationId"
-        WHERE q."createdAt" >= ${start} AND q."deletedAt" IS NULL
-        GROUP BY q."organizationId", o.name
-        ORDER BY quotes DESC
-        LIMIT 3
-      )
-    SELECT
-      (SELECT total FROM active_orgs) AS active_orgs,
-      (SELECT gmv FROM quote_totals) AS gmv,
-      (SELECT total_quotes FROM quote_totals) AS total_quotes,
-      (SELECT paid_quotes FROM quote_totals) AS paid_quotes,
-      (SELECT COALESCE(json_agg(growth), '[]'::json) FROM growth) AS growth_json,
-      (SELECT COALESCE(json_agg(exports), '[]'::json) FROM exports) AS exports_json,
-      (SELECT COALESCE(json_agg(materials), '[]'::json) FROM materials) AS materials_json,
-      (SELECT COALESCE(json_agg(top_users), '[]'::json) FROM top_users) AS top_users_json
-  `;
-
-  const row = rows[0];
+function hydrateRow(
+  row: RawAllRow | undefined,
+  range: MetricsRange,
+  buckets: { keys: number[]; points: UsagePoint[] },
+  now: Date
+): PlatformMetrics {
+  const points = buckets.points.map((p) => ({ ...p }));
   const growthRows = Array.isArray(row?.growth_json) ? row.growth_json : [];
   const exportRows = Array.isArray(row?.exports_json) ? row.exports_json : [];
   const materialRows = Array.isArray(row?.materials_json) ? row.materials_json : [];
   const userRows = Array.isArray(row?.top_users_json) ? row.top_users_json : [];
 
   for (const g of growthRows) {
-    // `bucket` viene serializado como timestamp sin zona (hora local de Córdoba) -> interpretarlo en UTC pared
     const bucketStr = String(g.bucket).endsWith("Z") ? String(g.bucket) : `${g.bucket}Z`;
-    const idx = keys.indexOf(new Date(bucketStr).getTime());
+    const idx = buckets.keys.indexOf(new Date(bucketStr).getTime());
     if (idx >= 0) points[idx].customers = num(g.total);
   }
 
@@ -189,11 +113,137 @@ export async function getPlatformMetricsRaw(range: MetricsRange): Promise<Platfo
   };
 }
 
+/**
+ * Ejecuta una única consulta SQL para calcular los 3 rangos (daily, weekly, monthly)
+ * leyendo cada tabla base 1 sola vez sobre la ventana máxima.
+ */
 export async function getAllPlatformMetricsRaw(): Promise<Record<MetricsRange, PlatformMetrics>> {
-  const [daily, weekly, monthly] = await Promise.all([
-    getPlatformMetricsRaw("daily"),
-    getPlatformMetricsRaw("weekly"),
-    getPlatformMetricsRaw("monthly"),
-  ]);
-  return { daily, weekly, monthly };
+  const now = new Date();
+  const bucketsByRange = {
+    daily: buildBuckets("daily", now),
+    weekly: buildBuckets("weekly", now),
+    monthly: buildBuckets("monthly", now),
+  };
+
+  const dailyStart = bucketsByRange.daily.start;
+  const weeklyStart = bucketsByRange.weekly.start;
+  const monthlyStart = bucketsByRange.monthly.start;
+
+  const dailyAct = new Date(now.getTime() - DAY);
+  const weeklyAct = new Date(now.getTime() - 7 * DAY);
+  const monthlyAct = new Date(now.getTime() - 30 * DAY);
+
+  const rows = await prisma.$queryRaw<RawAllRow[]>`
+    WITH
+      ranges AS (
+        SELECT 'daily'::text AS range_key, ${dailyStart}::timestamptz AS b_start, ${dailyAct}::timestamptz AS a_start, 'hour'::text AS unit
+        UNION ALL
+        SELECT 'weekly'::text, ${weeklyStart}::timestamptz, ${weeklyAct}::timestamptz, 'day'::text
+        UNION ALL
+        SELECT 'monthly'::text, ${monthlyStart}::timestamptz, ${monthlyAct}::timestamptz, 'day'::text
+      ),
+      base_quotes AS (
+        SELECT
+          q.id,
+          q."organizationId",
+          q."totalAmount",
+          q."createdAt",
+          EXISTS (
+            SELECT 1 FROM jobs j
+            JOIN payments p ON p."jobId" = j.id
+            WHERE j."quoteId" = q.id
+              AND p."paymentMethod" = 'MERCADO_PAGO'
+              AND p.status = 'APPROVED'
+          ) AS is_paid
+        FROM quotes q
+        WHERE q."createdAt" >= LEAST(${monthlyStart}::timestamptz, ${monthlyAct}::timestamptz)
+          AND q."deletedAt" IS NULL
+      ),
+      base_customers AS (
+        SELECT "organizationId", "createdAt"
+        FROM customers
+        WHERE "createdAt" >= LEAST(${monthlyStart}::timestamptz, ${monthlyAct}::timestamptz)
+          AND "deletedAt" IS NULL
+      ),
+      base_exports AS (
+        SELECT format::text AS format, "createdAt"
+        FROM export_events
+        WHERE "createdAt" >= ${monthlyStart}::timestamptz
+      ),
+      base_materials AS (
+        SELECT
+          q."createdAt",
+          TRIM(regexp_replace(qi.description, '[[:space:]]+', ' ', 'g')) AS raw_name,
+          LOWER(TRIM(regexp_replace(qi.description, '[[:space:]]+', ' ', 'g'))) AS norm_key,
+          qi.quantity
+        FROM quote_items qi
+        JOIN base_quotes q ON q.id = qi."quoteId"
+        WHERE qi."itemType" = 'MATERIALS'
+          AND q."createdAt" >= ${monthlyStart}::timestamptz
+      )
+    SELECT
+      r.range_key,
+      (
+        SELECT COUNT(*)::bigint FROM (
+          SELECT "organizationId" FROM base_quotes WHERE "createdAt" >= r.a_start
+          UNION
+          SELECT "organizationId" FROM base_customers WHERE "createdAt" >= r.a_start
+        ) ao
+      ) AS active_orgs,
+      COALESCE((SELECT SUM("totalAmount") FROM base_quotes WHERE "createdAt" >= r.b_start), 0)::bigint AS gmv,
+      (SELECT COUNT(*) FROM base_quotes WHERE "createdAt" >= r.b_start)::bigint AS total_quotes,
+      (SELECT COUNT(*) FROM base_quotes WHERE "createdAt" >= r.b_start AND is_paid)::bigint AS paid_quotes,
+      COALESCE((
+        SELECT json_agg(t) FROM (
+          SELECT date_trunc(r.unit, ("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${AR_TZ}) AS bucket,
+                 COUNT(*)::int AS total
+          FROM base_customers
+          WHERE "createdAt" >= r.b_start
+          GROUP BY 1
+        ) t
+      ), '[]'::json) AS growth_json,
+      COALESCE((
+        SELECT json_agg(t) FROM (
+          SELECT format, COUNT(*)::int AS total
+          FROM base_exports
+          WHERE "createdAt" >= r.b_start
+          GROUP BY format
+        ) t
+      ), '[]'::json) AS exports_json,
+      COALESCE((
+        SELECT json_agg(t) FROM (
+          SELECT MIN(raw_name) AS name, COALESCE(SUM(quantity), 0)::int AS quantity, COUNT(*)::int AS quotes
+          FROM base_materials
+          WHERE "createdAt" >= r.b_start
+          GROUP BY norm_key
+          ORDER BY quantity DESC
+          LIMIT 5
+        ) t
+      ), '[]'::json) AS materials_json,
+      COALESCE((
+        SELECT json_agg(t) FROM (
+          SELECT q."organizationId" AS id, o.name AS name,
+                 COUNT(*)::int AS quotes, COALESCE(SUM(q."totalAmount"), 0)::bigint AS total
+          FROM base_quotes q
+          JOIN organizations o ON o.id = q."organizationId"
+          WHERE q."createdAt" >= r.b_start
+          GROUP BY q."organizationId", o.name
+          ORDER BY quotes DESC
+          LIMIT 3
+        ) t
+      ), '[]'::json) AS top_users_json
+    FROM ranges r
+  `;
+
+  const byKey = new Map(rows.map((r) => [r.range_key, r]));
+  const result = {} as Record<MetricsRange, PlatformMetrics>;
+  for (const key of METRICS_RANGES) {
+    result[key] = hydrateRow(byKey.get(key), key, bucketsByRange[key], now);
+  }
+  return result;
+}
+
+export async function getPlatformMetricsRaw(range: MetricsRange): Promise<PlatformMetrics> {
+  const all = await getAllPlatformMetricsRaw();
+  return all[range];
 }

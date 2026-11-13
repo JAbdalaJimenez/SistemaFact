@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
-import { ArrowLeft, Banknote, BarChart3, Percent, ShieldCheck, Users } from "lucide-react";
+import { ArrowLeft, Banknote, BarChart3, Percent, RefreshCw, ShieldCheck, Users } from "lucide-react";
 import type { MetricsRange, PlatformMetrics } from "@/lib/admin-metrics-types";
 import { SegmentedControl } from "./segmented-control";
 import { KpiCard } from "./kpi-card";
@@ -41,48 +41,46 @@ export function MetricsDashboard({
   });
   const activeRangeRef = useRef<MetricsRange>(initialData.range);
 
-  const changeRange = useCallback(async (next: MetricsRange) => {
-    activeRangeRef.current = next;
-    setRange(next);
-    setError(null);
-
-    const cached = cacheRef.current[next];
-    if (cached) {
-      // Cambio instantáneo en memoria (0 ms), y refresco silencioso en segundo plano
-      setData(cached);
-      setLoading(false);
-      fetch(`/api/admin/dashboard?timeframe=${next}`, { cache: "no-store" })
-        .then((res) => (res.ok ? (res.json() as Promise<PlatformMetrics>) : null))
-        .then((fresh) => {
-          if (!fresh) return;
-          cacheRef.current[next] = fresh;
-          if (activeRangeRef.current === next) {
-            setData(fresh);
-          }
-        })
-        .catch(() => {});
-      return;
-    }
-
+  const fetchRange = useCallback(async (target: MetricsRange) => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await fetch(`/api/admin/dashboard?timeframe=${next}`, { cache: "no-store" });
+      const res = await fetch(`/api/admin/dashboard?timeframe=${target}`, { cache: "no-store" });
       if (!res.ok) throw new Error(res.status === 403 ? "Sin permisos" : "No se pudieron cargar las métricas");
       const fresh = (await res.json()) as PlatformMetrics;
-      cacheRef.current[next] = fresh;
-      if (activeRangeRef.current === next) {
+      cacheRef.current[target] = fresh;
+      if (activeRangeRef.current === target) {
         setData(fresh);
       }
     } catch (e) {
-      if (activeRangeRef.current === next) {
+      if (activeRangeRef.current === target) {
         setError(e instanceof Error ? e.message : "Error al cargar las métricas");
       }
     } finally {
-      if (activeRangeRef.current === next) {
+      if (activeRangeRef.current === target) {
         setLoading(false);
       }
     }
   }, []);
+
+  const changeRange = useCallback(
+    (next: MetricsRange) => {
+      activeRangeRef.current = next;
+      setRange(next);
+      setError(null);
+
+      const cached = cacheRef.current[next];
+      if (cached) {
+        // Cambio instantáneo en 0 ms desde caché en memoria, sin llamadas de red
+        setData(cached);
+        setLoading(false);
+        return;
+      }
+
+      void fetchRange(next);
+    },
+    [fetchRange]
+  );
 
   const conv = data.paymentConversion;
 
@@ -119,8 +117,18 @@ export function MetricsDashboard({
             </div>
           </div>
 
-          <div className="self-start sm:self-center">
+          <div className="flex items-center gap-2 self-start sm:self-center">
             <SegmentedControl value={range} onChange={changeRange} disabled={loading} />
+            <button
+              type="button"
+              onClick={() => void fetchRange(range)}
+              disabled={loading}
+              title="Actualizar métricas desde la base de datos"
+              aria-label="Actualizar métricas"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1C2541] border border-[#2A3B5C] text-[#C5A059] hover:text-white hover:border-[#C5A059]/50 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} strokeWidth={1.75} />
+            </button>
           </div>
         </div>
       </div>
