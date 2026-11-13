@@ -1,7 +1,7 @@
 import prisma from "./db";
 import { CustomerFormData, QuoteCreateInput, ManualPaymentInput } from "./types";
 import { randomUUID } from "crypto";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { encryptSecret } from "@/lib/crypto";
 
 // 1. Obtener Organización
@@ -480,7 +480,8 @@ export async function createUser(data: {
   }
 
   // 1. Crear primero en Supabase Auth usando Service Role Key
-  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+  const supabase = getSupabaseAdmin();
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
     email: normalizedEmail,
     password: data.password,
     email_confirm: true,
@@ -548,7 +549,7 @@ export async function createUser(data: {
     };
   } catch (dbError) {
     try {
-      await supabaseAdmin.auth.admin.deleteUser(createdAuthUserId);
+      await getSupabaseAdmin().auth.admin.deleteUser(createdAuthUserId);
     } catch (rollbackError) {
       console.error("[createUser] Error al revertir usuario en Supabase Auth:", rollbackError);
     }
@@ -570,7 +571,7 @@ export async function deleteUser(userId: string) {
   });
 
   if (user.authUserId) {
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(user.authUserId);
+    const { error } = await getSupabaseAdmin().auth.admin.deleteUser(user.authUserId);
     if (error) {
       console.error("[deleteUser] Aviso al eliminar usuario de Supabase Auth:", error.message);
     }
