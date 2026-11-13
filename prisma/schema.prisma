@@ -235,3 +235,21 @@ model Payment {
   @@index([mpPaymentId])
   @@map("payments")
 }
+
+enum ExportFormat {
+  PDF
+  DOCX
+}
+
+// Registro aditivo de descargas de presupuestos (alimenta el Dashboard de Metricas de Plataforma)
+model ExportEvent {
+  id             String       @id @default(cuid())
+  organizationId String
+  quoteId        String?
+  format         ExportFormat
+  createdAt      DateTime     @default(now())
+
+  @@index([createdAt])
+  @@index([organizationId])
+  @@map("export_events")
+}

@@ -3,6 +3,7 @@ import { getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
 import { generateQuotePdf } from "@/lib/pdf-generator";
 import prisma from "@/lib/db";
+import { trackQuoteExport } from "@/lib/export-tracking";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -64,6 +65,8 @@ export async function GET(_req: NextRequest, { params }: Props) {
     const quoteNum =
       quote.quoteNumber ||
       `EC-${safeId.length >= 6 ? safeId.slice(-6).toUpperCase() : safeId.toUpperCase()}`;
+
+    trackQuoteExport({ organizationId: quote.organizationId, quoteId: quote.id, format: "PDF" });
 
     return new NextResponse(Buffer.from(pdfBytes), {
       status: 200,
