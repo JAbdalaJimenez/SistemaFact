@@ -11,6 +11,7 @@ import {
   MapPin,
   UserCog,
   Settings,
+  BarChart3,
 } from "lucide-react";
 import { getDashboardMetrics, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
@@ -84,6 +85,16 @@ export default async function DashboardPage() {
                 <span>Usuarios</span>
               </Link>
             )}
+            {isSuperadmin && (
+              <Link
+                href="/admin/metrics"
+                prefetch={true}
+                className="bg-[#1C2541] hover:bg-[#2A3B5C] text-white border border-[#C5A059]/40 font-medium text-xs sm:text-sm py-2.5 px-3.5 rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
+              >
+                <BarChart3 className="w-4 h-4 text-[#C5A059]" strokeWidth={1.5} />
+                <span>Métricas</span>
+              </Link>
+            )}
             <Link
               href="/dashboard/settings"
               prefetch={true}
@@ -138,6 +149,37 @@ export default async function DashboardPage() {
           >
             <UserCog className="w-4 h-4 text-[#C5A059]" />
             <span>Crear y Administrar Usuarios</span>
+            <ArrowRight className="w-3.5 h-3.5 text-[#C5A059]" />
+          </Link>
+        </div>
+      )}
+
+      {/* SECCIÓN EXCLUSIVA SUPERADMIN: MÉTRICAS DE PLATAFORMA */}
+      {isSuperadmin && (
+        <div className="bg-white rounded-2xl p-5 border-2 border-[#C5A059] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3.5">
+            <div className="w-12 h-12 rounded-xl bg-[#0B132B] flex items-center justify-center shrink-0 shadow-sm">
+              <BarChart3 className="w-6 h-6 text-[#C5A059]" strokeWidth={1.5} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-[#0B132B]">Métricas de Plataforma</span>
+                <span className="bg-[#C5A059] text-[#0B132B] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                  Acceso Superadmin
+                </span>
+              </div>
+              <p className="text-xs text-[#475569] mt-0.5">
+                Electricistas activos, monto presupuestado, conversión de pagos, exportaciones y rankings.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/metrics"
+            prefetch={true}
+            className="bg-[#0B132B] hover:bg-[#1C2541] text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 shrink-0 border border-[#1C2541] active:scale-95"
+          >
+            <BarChart3 className="w-4 h-4 text-[#C5A059]" />
+            <span>Ver Métricas</span>
             <ArrowRight className="w-3.5 h-3.5 text-[#C5A059]" />
           </Link>
         </div>

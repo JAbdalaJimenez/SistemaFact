@@ -15,6 +15,7 @@ import {
   LogOut,
   Settings,
   UserCog,
+  BarChart3,
 } from "lucide-react";
 
 interface CurrentUser {
@@ -109,7 +110,10 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
     { href: "/quotes", label: "Presupuestos", icon: FileText },
     { href: "/jobs", label: "Trabajos", icon: Briefcase },
     ...(isSuperadmin
-      ? [{ href: "/dashboard/users", label: "Usuarios", icon: UserCog }]
+      ? [
+          { href: "/dashboard/users", label: "Usuarios", icon: UserCog },
+          { href: "/admin/metrics", label: "Métricas", icon: BarChart3 },
+        ]
       : []),
     { href: "/dashboard/settings", label: "Ajustes", icon: Settings },
   ];
@@ -181,6 +185,18 @@ export function AppNavigation({ initialUser = null }: AppNavigationProps) {
                 className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-slate-100 active:scale-90 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-all cursor-pointer shrink-0 touch-manipulation"
               >
                 <UserCog className="w-5 h-5 text-[#9A6E24] pointer-events-none" strokeWidth={1.6} />
+              </Link>
+            )}
+
+            {isSuperadmin && (
+              <Link
+                href="/admin/metrics"
+                prefetch={true}
+                title="Métricas de Plataforma (Superadmin)"
+                aria-label="Métricas de Plataforma"
+                className="w-10 h-10 rounded-xl bg-[#F8FAFC] hover:bg-slate-100 active:scale-90 text-[#475569] hover:text-[#0B132B] border border-[#E2E8F0] flex items-center justify-center transition-all cursor-pointer shrink-0 touch-manipulation"
+              >
+                <BarChart3 className="w-5 h-5 text-[#9A6E24] pointer-events-none" strokeWidth={1.6} />
               </Link>
             )}
 
