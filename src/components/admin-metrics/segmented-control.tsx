@@ -21,7 +21,7 @@ export function SegmentedControl({
     <div
       role="tablist"
       aria-label="Período"
-      className="inline-flex rounded-full bg-black/20 p-1 ring-1 ring-white/10"
+      className="inline-flex rounded-xl bg-[#1C2541] p-1 border border-[#2A3B5C]"
     >
       {OPTIONS.map((opt) => {
         const active = opt.value === value;
@@ -29,13 +29,14 @@ export function SegmentedControl({
           <button
             key={opt.value}
             role="tab"
+            type="button"
             aria-selected={active}
             disabled={disabled}
             onClick={() => onChange(opt.value)}
-            className={`rounded-full px-5 py-2 text-sm font-medium transition-all duration-200 ${
+            className={`rounded-lg px-4 py-2 text-xs sm:text-sm transition-all duration-150 cursor-pointer ${
               active
-                ? "bg-[#d4a574] text-[#2c3e50] shadow-md"
-                : "text-white/60 hover:text-white"
+                ? "bg-[#C5A059] text-[#0B132B] font-semibold shadow-sm"
+                : "text-slate-300 hover:text-white hover:bg-white/5 font-medium"
             }`}
           >
             {opt.label}
@@ -45,4 +46,3 @@ export function SegmentedControl({
     </div>
   );
 }
-

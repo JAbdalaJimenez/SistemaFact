@@ -19,27 +19,33 @@ export function RankingList({
   emptyText: string;
 }) {
   return (
-    <section className={`${CARD_CLASS} p-7`}>
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <p className="mt-1 text-sm text-white/50">{subtitle}</p>
+    <section className={`${CARD_CLASS} overflow-hidden`}>
+      <div className="p-4 sm:p-5 border-b border-[#E2E8F0]">
+        <h2 className="text-base font-semibold text-[#0B132B]">{title}</h2>
+        <p className="mt-0.5 text-xs text-[#475569]">{subtitle}</p>
+      </div>
 
       {rows.length === 0 ? (
-        <p className="mt-6 text-sm text-white/40">{emptyText}</p>
+        <div className="p-6 text-center text-xs text-[#64748B]">{emptyText}</div>
       ) : (
-        <ol className="mt-5 space-y-2">
+        <ol className="divide-y divide-[#E2E8F0]">
           {rows.map((row, i) => (
             <li
               key={row.key}
-              className="flex items-center gap-4 rounded-2xl bg-white/[0.04] px-4 py-3.5"
+              className="flex items-center gap-3.5 px-4 py-3.5 sm:px-5 hover:bg-[#F8FAFC] transition-colors"
             >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#d4a574]/15 text-sm font-semibold text-[#d4a574]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0B132B] border border-[#1C2541] text-xs font-semibold text-[#C5A059] tabular-nums">
                 {i + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{row.primary}</p>
-                {row.secondary && <p className="truncate text-xs text-white/45">{row.secondary}</p>}
+                <p className="truncate text-sm font-medium text-[#0B132B]">{row.primary}</p>
+                {row.secondary && (
+                  <p className="truncate text-xs text-[#475569] font-normal">{row.secondary}</p>
+                )}
               </div>
-              <span className="text-sm font-semibold text-white">{row.value}</span>
+              <span className="shrink-0 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] px-2.5 py-1 text-xs font-semibold text-[#0B132B] tabular-nums">
+                {row.value}
+              </span>
             </li>
           ))}
         </ol>
@@ -47,4 +53,3 @@ export function RankingList({
     </section>
   );
 }
-

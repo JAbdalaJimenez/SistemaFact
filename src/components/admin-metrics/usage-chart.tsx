@@ -14,52 +14,56 @@ import { CARD_CLASS } from "./kpi-card";
 
 export function UsageChart({ data }: { data: UsagePoint[] }) {
   return (
-    <section className={`${CARD_CLASS} p-7 lg:col-span-2`}>
-      <h2 className="text-lg font-semibold text-white">Curva de uso del CRM</h2>
-      <p className="mt-1 text-sm text-white/50">Clientes nuevos registrados en el período</p>
-      <div className="mt-6 h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis
-              dataKey="label"
-              stroke="rgba(255,255,255,0.4)"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              interval="preserveStartEnd"
-              minTickGap={24}
-            />
-            <YAxis
-              stroke="rgba(255,255,255,0.4)"
-              tickLine={false}
-              axisLine={false}
-              fontSize={12}
-              allowDecimals={false}
-            />
-            <Tooltip
-              cursor={{ stroke: "rgba(212,165,116,0.3)" }}
-              contentStyle={{
-                background: "#2c3e50",
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 16,
-                color: "#fff",
-              }}
-              formatter={(v: number) => [v, "Clientes nuevos"]}
-            />
-            <Line
-              type="monotone"
-              dataKey="customers"
-              stroke="#d4a574"
-              strokeWidth={3}
-              dot={false}
-              isAnimationActive={false}
-              activeDot={{ r: 5, fill: "#d4a574", stroke: "#2c3e50", strokeWidth: 2 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+    <section className={`${CARD_CLASS} overflow-hidden lg:col-span-2`}>
+      <div className="p-4 sm:p-5 border-b border-[#E2E8F0]">
+        <h2 className="text-base font-semibold text-[#0B132B]">Curva de uso del CRM</h2>
+        <p className="mt-0.5 text-xs text-[#475569]">Clientes nuevos registrados en el período</p>
+      </div>
+      <div className="p-4 sm:p-5">
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={data} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+              <CartesianGrid stroke="#E2E8F0" strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                dataKey="label"
+                stroke="#64748B"
+                tickLine={false}
+                axisLine={false}
+                fontSize={11}
+                interval="preserveStartEnd"
+                minTickGap={24}
+              />
+              <YAxis
+                stroke="#64748B"
+                tickLine={false}
+                axisLine={false}
+                fontSize={11}
+                allowDecimals={false}
+              />
+              <Tooltip
+                cursor={{ stroke: "#C5A059", strokeWidth: 1 }}
+                contentStyle={{
+                  background: "#0B132B",
+                  border: "1px solid #1C2541",
+                  borderRadius: 12,
+                  color: "#fff",
+                  fontSize: 12,
+                }}
+                formatter={(v: number) => [v, "Clientes nuevos"]}
+              />
+              <Line
+                type="monotone"
+                dataKey="customers"
+                stroke="#0B132B"
+                strokeWidth={2.5}
+                dot={false}
+                isAnimationActive={false}
+                activeDot={{ r: 5, fill: "#C5A059", stroke: "#0B132B", strokeWidth: 2 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </section>
   );
 }
-

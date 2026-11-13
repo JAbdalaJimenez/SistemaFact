@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useRef, useState } from "react";
-import { Banknote, Percent, Users } from "lucide-react";
+import { ArrowLeft, Banknote, BarChart3, Percent, ShieldCheck, Users } from "lucide-react";
 import type { MetricsRange, PlatformMetrics } from "@/lib/admin-metrics-types";
 import { SegmentedControl } from "./segmented-control";
 import { KpiCard } from "./kpi-card";
@@ -17,9 +18,9 @@ const currency = new Intl.NumberFormat("es-AR", {
 const integer = new Intl.NumberFormat("es-AR");
 
 const ACTIVE_CAPTION: Record<string, string> = {
-  DAU: "Activos en las últimas 24 horas",
-  WAU: "Activos en los últimos 7 días",
-  MAU: "Activos en los últimos 30 días",
+  DAU: "Organizaciones activas en las últimas 24 horas",
+  WAU: "Organizaciones activas en los últimos 7 días",
+  MAU: "Organizaciones activas en los últimos 30 días",
 };
 
 export function MetricsDashboard({
@@ -86,80 +87,104 @@ export function MetricsDashboard({
   const conv = data.paymentConversion;
 
   return (
-    <div
-      className="min-h-screen bg-[#2c3e50] px-5 py-10 text-white sm:px-8"
-      style={{
-        fontFamily:
-          '"Inter", "Helvetica Neue", "Neue Haas Grotesk", Helvetica, Arial, system-ui, sans-serif',
-      }}
-    >
-      <div className="mx-auto max-w-6xl space-y-8">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Métricas de Plataforma</h1>
-            <p className="mt-1 text-sm text-white/50">Vista exclusiva de administración</p>
-          </div>
-          <SegmentedControl value={range} onChange={changeRange} disabled={loading} />
-        </header>
+    <div className="space-y-6 font-sans">
+      {/* ENCABEZADO INSTITUCIONAL - OXFORD & GOLD */}
+      <div className="bg-[#0B132B] rounded-2xl p-5 sm:p-6 text-white shadow-sm border border-[#1C2541] relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#9A6E24] via-[#C5A059] to-[#9A6E24]" />
 
-        {error && (
-          <div className="rounded-2xl bg-red-500/10 px-5 py-3 text-sm text-red-200 ring-1 ring-red-400/30">
-            {error}
-          </div>
-        )}
-
-        <div className={`space-y-8 transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}>
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              featured
-              title={`Electricistas activos (${data.activeElectricians.label})`}
-              value={integer.format(data.activeElectricians.value)}
-              caption={ACTIVE_CAPTION[data.activeElectricians.label]}
-              icon={<Users className="h-5 w-5" />}
-            />
-            <KpiCard
-              title="Monto presupuestado"
-              value={currency.format(data.theoreticalGmv)}
-              caption="GMV teórico del período"
-              icon={<Banknote className="h-5 w-5" />}
-            />
-            <KpiCard
-              title="Conversión de pagos"
-              value={`${conv.percentage.toLocaleString("es-AR")}%`}
-              caption={`${conv.paidQuotes} de ${conv.totalQuotes} cobrados vía Mercado Pago`}
-              icon={<Percent className="h-5 w-5" />}
-            />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <Link
+              href="/dashboard"
+              prefetch={true}
+              aria-label="Volver al Dashboard"
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1C2541] border border-[#2A3B5C] text-slate-300 hover:text-white hover:border-[#C5A059]/50 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
+            </Link>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="bg-[#1C2541] border border-[#C5A059]/40 text-[#C5A059] text-[10px] font-semibold px-2.5 py-0.5 rounded tracking-wider uppercase inline-flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#C5A059]" strokeWidth={1.5} />
+                  <span>Acceso Superadmin</span>
+                </span>
+              </div>
+              <h1 className="mt-2 text-xl sm:text-2xl font-semibold tracking-tight text-white flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-[#C5A059]" strokeWidth={1.75} />
+                <span>Métricas de Plataforma</span>
+              </h1>
+              <p className="mt-0.5 text-xs text-slate-400 font-normal">
+                Actividad general, facturación estimada y conversión de cobranzas en ElectroCba
+              </p>
+            </div>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-3">
-            <UsageChart data={data.customerGrowth} />
-            <ExportDonut pdf={data.exportPreference.pdf} docx={data.exportPreference.docx} />
+          <div className="self-start sm:self-center">
+            <SegmentedControl value={range} onChange={changeRange} disabled={loading} />
           </div>
+        </div>
+      </div>
 
-          <div className="grid gap-5 lg:grid-cols-2">
-            <RankingList
-              title="Top 5 materiales"
-              subtitle="Más presupuestados en la plataforma"
-              emptyText="Sin materiales presupuestados en el período"
-              rows={data.topMaterials.map((m) => ({
-                key: m.name.toLowerCase(),
-                primary: m.name,
-                secondary: `${m.quotes} presupuesto${m.quotes === 1 ? "" : "s"}`,
-                value: `${integer.format(m.quantity)} u.`,
-              }))}
-            />
-            <RankingList
-              title="Top 3 usuarios"
-              subtitle="Mayor volumen de cotizaciones generadas"
-              emptyText="Sin cotizaciones en el período"
-              rows={data.topUsers.map((u) => ({
-                key: u.organizationId,
-                primary: u.name,
-                secondary: currency.format(u.totalAmount),
-                value: `${integer.format(u.quotes)} cotiz.`,
-              }))}
-            />
-          </div>
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-xs font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className={`space-y-6 transition-opacity duration-150 ${loading ? "opacity-60" : ""}`}>
+        {/* TARJETAS KPI */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <KpiCard
+            featured
+            title={`Electricistas activos (${data.activeElectricians.label})`}
+            value={integer.format(data.activeElectricians.value)}
+            caption={ACTIVE_CAPTION[data.activeElectricians.label]}
+            icon={<Users className="h-4 w-4" strokeWidth={1.75} />}
+          />
+          <KpiCard
+            title="Monto presupuestado"
+            value={currency.format(data.theoreticalGmv)}
+            caption="GMV teórico acumulado del período"
+            icon={<Banknote className="h-4 w-4" strokeWidth={1.75} />}
+          />
+          <KpiCard
+            title="Conversión de pagos"
+            value={`${conv.percentage.toLocaleString("es-AR")}%`}
+            caption={`${conv.paidQuotes} de ${conv.totalQuotes} cobrados vía Mercado Pago`}
+            icon={<Percent className="h-4 w-4" strokeWidth={1.75} />}
+          />
+        </div>
+
+        {/* GRÁFICOS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <UsageChart data={data.customerGrowth} />
+          <ExportDonut pdf={data.exportPreference.pdf} docx={data.exportPreference.docx} />
+        </div>
+
+        {/* RANKINGS OPERATIVOS */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <RankingList
+            title="Top 5 materiales"
+            subtitle="Más presupuestados en la plataforma"
+            emptyText="Sin materiales presupuestados en el período"
+            rows={data.topMaterials.map((m) => ({
+              key: m.name.toLowerCase(),
+              primary: m.name,
+              secondary: `${m.quotes} presupuesto${m.quotes === 1 ? "" : "s"}`,
+              value: `${integer.format(m.quantity)} u.`,
+            }))}
+          />
+          <RankingList
+            title="Top 3 usuarios"
+            subtitle="Mayor volumen de cotizaciones generadas"
+            emptyText="Sin cotizaciones en el período"
+            rows={data.topUsers.map((u) => ({
+              key: u.organizationId,
+              primary: u.name,
+              secondary: currency.format(u.totalAmount),
+              value: `${integer.format(u.quotes)} cotiz.`,
+            }))}
+          />
         </div>
       </div>
     </div>

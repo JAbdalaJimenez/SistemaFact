@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 export const CARD_CLASS =
-  "rounded-[28px] bg-white/[0.06] ring-1 ring-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm";
+  "rounded-2xl bg-white border border-[#E2E8F0] shadow-sm";
 
 export function KpiCard({
   title,
@@ -18,23 +18,34 @@ export function KpiCard({
 }) {
   return (
     <div
-      className={`${CARD_CLASS} ${featured ? "bg-white/[0.10] p-9 md:col-span-2" : "p-7"}`}
+      className={`${CARD_CLASS} p-5 flex flex-col justify-between ${
+        featured ? "border-[#C5A059]/60" : ""
+      }`}
     >
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium uppercase tracking-wider text-white/60">{title}</p>
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#d4a574]/15 text-[#d4a574]">
-          {icon}
-        </span>
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">
+            {title}
+          </span>
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+              featured
+                ? "bg-[#0B132B] border-[#1C2541] text-[#C5A059]"
+                : "bg-[#F8FAFC] border-[#E2E8F0] text-[#9A6E24]"
+            }`}
+          >
+            {icon}
+          </span>
+        </div>
+        <p className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-[#0B132B] tabular-nums">
+          {value}
+        </p>
       </div>
-      <p
-        className={`mt-5 font-semibold tracking-tight text-white ${
-          featured ? "text-6xl" : "text-4xl"
-        }`}
-      >
-        {value}
-      </p>
-      {caption && <p className="mt-2 text-sm text-white/50">{caption}</p>}
+      {caption && (
+        <p className="mt-4 pt-3 border-t border-[#E2E8F0] text-xs text-[#475569] font-normal">
+          {caption}
+        </p>
+      )}
     </div>
   );
 }
-
