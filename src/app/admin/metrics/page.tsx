@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { getPlatformMetricsRaw } from "@/lib/admin-metrics-raw";
+import { getAllPlatformMetricsRaw } from "@/lib/admin-metrics-raw";
 import { MetricsDashboard } from "@/components/admin-metrics/metrics-dashboard";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function PlatformMetricsPage() {
     notFound();
   }
 
-  const initial = await getPlatformMetricsRaw("monthly");
-  return <MetricsDashboard initialData={initial} />;
+  const allMetrics = await getAllPlatformMetricsRaw();
+  return <MetricsDashboard initialData={allMetrics.monthly} initialAllData={allMetrics} />;
 }
 

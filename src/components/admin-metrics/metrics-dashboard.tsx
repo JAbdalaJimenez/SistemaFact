@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Banknote, Percent, Users } from "lucide-react";
 import type { MetricsRange, PlatformMetrics } from "@/lib/admin-metrics-types";
 import { SegmentedControl } from "./segmented-control";
@@ -22,24 +22,64 @@ const ACTIVE_CAPTION: Record<string, string> = {
   MAU: "Activos en los últimos 30 días",
 };
 
-export function MetricsDashboard({ initialData }: { initialData: PlatformMetrics }) {
+export function MetricsDashboard({
+  initialData,
+  initialAllData,
+}: {
+  initialData: PlatformMetrics;
+  initialAllData?: Partial<Record<MetricsRange, PlatformMetrics>>;
+}) {
   const [range, setRange] = useState<MetricsRange>(initialData.range);
   const [data, setData] = useState<PlatformMetrics>(initialData);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const cacheRef = useRef<Partial<Record<MetricsRange, PlatformMetrics>>>({
+    ...initialAllData,
+    [initialData.range]: initialData,
+  });
+  const activeRangeRef = useRef<MetricsRange>(initialData.range);
+
   const changeRange = useCallback(async (next: MetricsRange) => {
+    activeRangeRef.current = next;
     setRange(next);
-    setLoading(true);
     setError(null);
+
+    const cached = cacheRef.current[next];
+    if (cached) {
+      // Cambio instantáneo en memoria (0 ms), y refresco silencioso en segundo plano
+      setData(cached);
+      setLoading(false);
+      fetch(`/api/admin/dashboard?timeframe=${next}`, { cache: "no-store" })
+        .then((res) => (res.ok ? (res.json() as Promise<PlatformMetrics>) : null))
+        .then((fresh) => {
+          if (!fresh) return;
+          cacheRef.current[next] = fresh;
+          if (activeRangeRef.current === next) {
+            setData(fresh);
+          }
+        })
+        .catch(() => {});
+      return;
+    }
+
+    setLoading(true);
     try {
       const res = await fetch(`/api/admin/dashboard?timeframe=${next}`, { cache: "no-store" });
       if (!res.ok) throw new Error(res.status === 403 ? "Sin permisos" : "No se pudieron cargar las métricas");
-      setData((await res.json()) as PlatformMetrics);
+      const fresh = (await res.json()) as PlatformMetrics;
+      cacheRef.current[next] = fresh;
+      if (activeRangeRef.current === next) {
+        setData(fresh);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar las métricas");
+      if (activeRangeRef.current === next) {
+        setError(e instanceof Error ? e.message : "Error al cargar las métricas");
+      }
     } finally {
-      setLoading(false);
+      if (activeRangeRef.current === next) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -125,4 +165,3 @@ export function MetricsDashboard({ initialData }: { initialData: PlatformMetrics
     </div>
   );
 }
-

@@ -33,6 +33,7 @@ export function ExportDonut({ pdf, docx }: { pdf: number; docx: number }) {
                   paddingAngle={4}
                   cornerRadius={8}
                   stroke="none"
+                  isAnimationActive={false}
                 >
                   {data.map((d) => (
                     <Cell key={d.name} fill={d.color} />

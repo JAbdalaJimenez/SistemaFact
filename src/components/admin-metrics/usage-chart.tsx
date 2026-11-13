@@ -53,6 +53,7 @@ export function UsageChart({ data }: { data: UsagePoint[] }) {
               stroke="#d4a574"
               strokeWidth={3}
               dot={false}
+              isAnimationActive={false}
               activeDot={{ r: 5, fill: "#d4a574", stroke: "#2c3e50", strokeWidth: 2 }}
             />
           </LineChart>
