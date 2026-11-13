@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
-const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
+const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/admin", "/quotes", "/customers", "/jobs"];
 
 const PUBLIC_API_EXACT = new Set([
   "/api/payments/webhook",

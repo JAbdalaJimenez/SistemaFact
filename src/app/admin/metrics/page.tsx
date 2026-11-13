@@ -23,7 +23,7 @@ export default async function PlatformMetricsPage() {
     notFound();
   }
 
-  const initial = await getPlatformMetricsRaw("weekly");
+  const initial = await getPlatformMetricsRaw("monthly");
   return <MetricsDashboard initialData={initial} />;
 }
 
