@@ -4,29 +4,35 @@ import { getUsers, createUser } from "@/lib/services";
 import { z } from "zod";
 
 const createUserSchema = z.object({
-  name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-  email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
-  role: z.enum(["SUPERADMIN", "OWNER", "MEMBER"]).default("OWNER"),
-  phone: z.string().optional(),
+  name: z.string().trim().min(2, "El nombre debe tener al menos 2 caracteres").max(100),
+  email: z.string().trim().email("Correo electrónico inválido").max(100),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres").max(100),
+  role: z.enum(["SUPERADMIN", "OWNER", "MEMBER"]).default("MEMBER"),
+  phone: z.string().trim().max(25).optional(),
+  shareCurrentOrg: z.boolean().optional(),
 });
 
 /**
  * GET /api/users
- * Lista todos los usuarios (Exclusivo Superadmin)
+ * SUPERADMIN lista todos los usuarios; OWNER lista los miembros de su propia organización.
  */
 export async function GET() {
   const session = await getSession();
 
-  if (!session || session.role !== "SUPERADMIN") {
+  if (!session) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  if (session.role !== "SUPERADMIN" && session.role !== "OWNER") {
     return NextResponse.json(
-      { error: "Acceso denegado. Se requiere perfil de Superadministrador para auditar usuarios." },
+      { error: "Acceso denegado. No tiene permisos para listar usuarios." },
       { status: 403 }
     );
   }
 
   try {
-    const users = await getUsers();
+    const filterOrgId = session.role === "SUPERADMIN" ? undefined : session.organizationId;
+    const users = await getUsers(filterOrgId);
     return NextResponse.json({ users });
   } catch (error: unknown) {
     console.error("Error al obtener usuarios:", error);
@@ -39,14 +45,20 @@ export async function GET() {
 
 /**
  * POST /api/users
- * Da de alta un nuevo usuario (Exclusivo Superadmin)
+ * Alta de nuevo usuario en Supabase Auth + Prisma:
+ * - OWNER solo puede crear usuarios con rol MEMBER dentro de su propia organización (shareCurrentOrg = true forzado).
+ * - Solo SUPERADMIN puede crear nuevas organizaciones o asignar roles OWNER / SUPERADMIN.
  */
 export async function POST(req: NextRequest) {
   const session = await getSession();
 
-  if (!session || session.role !== "SUPERADMIN") {
+  if (!session) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
+  if (session.role !== "SUPERADMIN" && session.role !== "OWNER") {
     return NextResponse.json(
-      { error: "Acceso denegado. Únicamente la cuenta Superadministrador puede crear usuarios en la plataforma." },
+      { error: "Acceso denegado. No tiene permisos para crear usuarios." },
       { status: 403 }
     );
   }
@@ -62,18 +74,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const isSuperadmin = session.role === "SUPERADMIN";
+
+    if (!isSuperadmin && result.data.role !== "MEMBER") {
+      return NextResponse.json(
+        { error: "Un titular (OWNER) solo puede dar de alta técnicos (MEMBER) dentro de su organización." },
+        { status: 403 }
+      );
+    }
+
+    const effectiveRole = isSuperadmin ? result.data.role : "MEMBER";
+    const shareCurrentOrg = isSuperadmin ? Boolean(result.data.shareCurrentOrg) : true;
+
     const newUser = await createUser({
       name: result.data.name,
       email: result.data.email,
       password: result.data.password,
-      role: result.data.role,
+      role: effectiveRole,
       phone: result.data.phone,
       organizationId: session.organizationId,
+      shareCurrentOrg,
     });
 
     return NextResponse.json({ success: true, user: newUser }, { status: 201 });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg }, { status: 400 });
+    console.error("Error al crear usuario:", error);
+    const rawMsg = error instanceof Error ? error.message : "";
+    const isSafeMessage =
+      rawMsg.includes("Ya existe") ||
+      rawMsg.includes("inválido") ||
+      rawMsg.includes("caracteres");
+    return NextResponse.json(
+      { error: isSafeMessage ? rawMsg : "Error al procesar el alta de usuario" },
+      { status: 400 }
+    );
   }
 }

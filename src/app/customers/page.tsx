@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Users, UserPlus, Phone, MapPin, MessageCircle, FilePlus } from "lucide-react";
 import { getCustomers, getOrganization } from "@/lib/services";
 import { getSession } from "@/lib/auth";
@@ -9,7 +10,8 @@ export const revalidate = 0;
 
 export default async function CustomersPage() {
   const session = await getSession();
-  const orgId = session?.organizationId;
+  if (!session) redirect("/login?callbackUrl=/customers");
+  const orgId = session.organizationId;
   const [customers, org] = await Promise.all([
     getCustomers(orgId),
     getOrganization(orgId),

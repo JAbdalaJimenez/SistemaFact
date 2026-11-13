@@ -1,18 +1,15 @@
+import "server-only";
 import { MercadoPagoConfig, Preference } from "mercadopago";
 import crypto from "crypto";
+import { env, publicEnv } from "./env";
+import { decryptSecret, signExternalReference } from "./crypto";
 import { formatCurrencyARS, formatPhoneForWhatsApp } from "./types";
-
-// Inicializar cliente Mercado Pago
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MERCADO_PAGO_ACCESS_TOKEN || "TEST-mock-token",
-  options: { timeout: 7000 },
-});
 
 export interface CreatePreferenceParams {
   title: string;
   amount: number;
   organizationId: string;
-  accessToken?: string;
+  accessToken?: string | null;
   quoteId?: string;
   jobId?: string;
   customerName?: string;
@@ -26,77 +23,99 @@ export interface PreferenceResult {
   shortUrl: string;
 }
 
+export interface MercadoPagoPaymentInfo {
+  id: string;
+  status: string;
+  transaction_amount: number;
+  external_reference: string | null;
+}
+
 /**
- * Genera una preferencia de pago oficial en Mercado Pago
+ * Genera una preferencia de pago oficial en Mercado Pago con external_reference firmado con HMAC.
  */
 export async function createPreference(
   params: CreatePreferenceParams
 ): Promise<PreferenceResult> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const tokenToUse = params.accessToken || process.env.MERCADO_PAGO_ACCESS_TOKEN || "TEST-mock-token";
+  const baseUrl = publicEnv.NEXT_PUBLIC_APP_URL;
+  const decryptedOrgToken = decryptSecret(params.accessToken);
+  const tokenToUse = decryptedOrgToken || env.MERCADO_PAGO_ACCESS_TOKEN || "";
 
-  // En caso de que se use un token de prueba o sin conexión externa a MP,
-  // permitimos generar el objeto de preferencia con fallback seguro y funcional.
-  try {
-    if (
-      tokenToUse &&
-      !tokenToUse.includes("mock") &&
-      !tokenToUse.includes("1234567890")
-    ) {
-      const activeClient = new MercadoPagoConfig({
-        accessToken: tokenToUse,
-        options: { timeout: 7000 },
-      });
-      const preference = new Preference(activeClient);
-      const res = await preference.create({
-        body: {
-          items: [
-            {
-              id: params.jobId || params.quoteId || "item-electrocba",
-              title: params.title,
-              description: `Servicio técnico electricista (${params.title})`,
-              unit_price: Number(params.amount),
-              quantity: 1,
-              currency_id: "ARS",
-            },
-          ],
-          payer: {
-            name: params.customerName || "Cliente",
-            email: params.customerEmail || "cliente@electrocba.com.ar",
-          },
-          back_urls: {
-            success: `${baseUrl}/payments/status?status=approved&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
-            failure: `${baseUrl}/payments/status?status=failure&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
-            pending: `${baseUrl}/payments/status?status=pending&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
-          },
-          auto_return: "approved",
-          notification_url: `${baseUrl}/api/payments/webhook`,
-          external_reference: JSON.stringify({
-            organizationId: params.organizationId,
-            jobId: params.jobId,
-            quoteId: params.quoteId,
-            amount: params.amount,
-          }),
-          statement_descriptor: "ELECTROCBA",
-          payment_methods: {
-            excluded_payment_types: [],
-            installments: 12,
-          },
-        },
-      });
+  const signedExternalReference = signExternalReference({
+    organizationId: params.organizationId,
+    jobId: params.jobId,
+    quoteId: params.quoteId,
+    expectedAmount: Math.round(Number(params.amount)),
+  });
 
-      return {
-        id: res.id || `pref_${Date.now()}`,
-        initPoint: res.init_point || `${baseUrl}/p/pay-demo?prefId=${res.id}`,
-        sandboxInitPoint: res.sandbox_init_point || res.init_point || "",
-        shortUrl: res.init_point || `${baseUrl}/p/pay-demo?id=${res.id}`,
-      };
+  if (
+    tokenToUse &&
+    !tokenToUse.includes("mock") &&
+    !tokenToUse.includes("CHANGE_ME") &&
+    !tokenToUse.includes("your-access-token")
+  ) {
+    const activeClient = new MercadoPagoConfig({
+      accessToken: tokenToUse,
+      options: { timeout: 7000 },
+    });
+    const preference = new Preference(activeClient);
+
+    const payerData: { name?: string; email?: string } = {};
+    if (params.customerName) {
+      payerData.name = params.customerName;
     }
-  } catch (error) {
-    console.warn("Mercado Pago API real no disponible con credenciales mock. Usando sandbox simulado:", error);
+    const cleanEmail = params.customerEmail?.trim();
+    if (cleanEmail && cleanEmail.includes("@")) {
+      payerData.email = cleanEmail;
+    }
+
+    const res = await preference.create({
+      body: {
+        items: [
+          {
+            id: params.jobId || params.quoteId || "item-electrocba",
+            title: params.title,
+            description: `Servicio técnico electricista (${params.title})`,
+            unit_price: Math.round(Number(params.amount)),
+            quantity: 1,
+            currency_id: "ARS",
+          },
+        ],
+        ...(Object.keys(payerData).length > 0 ? { payer: payerData } : {}),
+        back_urls: {
+          success: `${baseUrl}/payments/status?status=approved&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
+          failure: `${baseUrl}/payments/status?status=failure&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
+          pending: `${baseUrl}/payments/status?status=pending&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}`,
+        },
+        auto_return: "approved",
+        notification_url: `${baseUrl}/api/payments/webhook?orgId=${encodeURIComponent(params.organizationId)}`,
+        external_reference: signedExternalReference,
+        statement_descriptor: "ELECTROCBA",
+        payment_methods: {
+          excluded_payment_types: [],
+          installments: 12,
+        },
+      },
+    });
+
+    if (!res.id || !res.init_point) {
+      throw new Error("Mercado Pago no devolvió una URL de pago válida.");
+    }
+
+    return {
+      id: res.id,
+      initPoint: res.init_point,
+      sandboxInitPoint: res.sandbox_init_point || res.init_point,
+      shortUrl: res.init_point,
+    };
   }
 
-  // Simulación realista de Mercado Pago Checkout Pro para entornos de prueba
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "La organización no tiene configurado un Access Token válido de Mercado Pago."
+    );
+  }
+
+  // Solo en entorno local de desarrollo (bloqueado en producción):
   const mockId = `MP-${Math.floor(100000000 + Math.random() * 900000000)}`;
   const checkoutUrl = `${baseUrl}/payments/checkout-mock?pref_id=${mockId}&jobId=${params.jobId || ""}&quoteId=${params.quoteId || ""}&amount=${params.amount}&title=${encodeURIComponent(params.title)}`;
 
@@ -109,44 +128,94 @@ export async function createPreference(
 }
 
 /**
- * Valida la firma del Webhook de Mercado Pago para garantizar autenticidad e integridad
+ * Consulta un pago directamente en la API oficial de Mercado Pago (`GET /v1/payments/{id}`).
+ * Nunca se confía en los datos enviados en el body del webhook.
+ */
+export async function fetchPaymentFromMercadoPago(
+  paymentId: string,
+  accessToken: string
+): Promise<MercadoPagoPaymentInfo> {
+  const token = decryptSecret(accessToken) || env.MERCADO_PAGO_ACCESS_TOKEN || "";
+  if (!token) {
+    throw new Error("Access Token de Mercado Pago no disponible para verificar el pago.");
+  }
+
+  const res = await fetch(
+    `https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Mercado Pago API respondió con estado ${res.status}`);
+  }
+
+  const data = await res.json();
+  return {
+    id: String(data.id),
+    status: String(data.status || ""),
+    transaction_amount: Number(data.transaction_amount || 0),
+    external_reference:
+      typeof data.external_reference === "string" ? data.external_reference : null,
+  };
+}
+
+/**
+ * Valida la firma HMAC-SHA256 del Webhook de Mercado Pago en tiempo constante.
+ * Acepta el webhook secret específico (de la organización o global).
+ * Falla cerrado: si falta el secreto, los headers o el dataId, devuelve `false`.
  */
 export function verifyMercadoPagoSignature(
   xSignature: string | null,
   xRequestId: string | null,
-  dataId: string
+  dataId: string | null | undefined,
+  secretOverride?: string | null
 ): boolean {
-  const secret = process.env.MERCADO_PAGO_WEBHOOK_SECRET;
-  if (!secret || secret === "test_webhook_secret_key") {
-    // En modo test/desarrollo permitimos la firma para testing sin trabas
-    return true;
+  const secret = secretOverride || env.MERCADO_PAGO_WEBHOOK_SECRET;
+  if (!secret || secret === "CHANGE_ME" || secret === "test_webhook_secret_key") {
+    return false;
   }
 
-  if (!xSignature || !xRequestId) return false;
+  if (!xSignature || !xRequestId || !dataId) {
+    return false;
+  }
 
   try {
-    // Formato de x-signature: "ts=1700000000,v1=abcdef..."
     const parts = xSignature.split(",");
     let ts = "";
     let hash = "";
 
     for (const part of parts) {
-      const [key, value] = part.trim().split("=");
+      const idx = part.indexOf("=");
+      if (idx === -1) continue;
+      const key = part.slice(0, idx).trim();
+      const value = part.slice(idx + 1).trim();
       if (key === "ts") ts = value;
       if (key === "v1") hash = value;
     }
 
     if (!ts || !hash) return false;
 
-    // Cadena a firmar según doc oficial Mercado Pago
     const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
-    const hmac = crypto.createHmac("sha256", secret);
-    hmac.update(manifest);
-    const computedHash = hmac.digest("hex");
+    const computedHash = crypto
+      .createHmac("sha256", secret)
+      .update(manifest)
+      .digest("hex");
 
-    return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(computedHash));
-  } catch (err) {
-    console.error("Error al verificar firma Mercado Pago:", err);
+    const a = Buffer.from(hash, "hex");
+    const b = Buffer.from(computedHash, "hex");
+    if (a.length === 0 || a.length !== b.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(a, b);
+  } catch {
     return false;
   }
 }
@@ -179,7 +248,7 @@ export function generateWhatsAppLink({
 }): string {
   const cleanPhone = formatPhoneForWhatsApp(phone);
   const formattedAmount = formatCurrencyARS(amount);
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const baseUrl = publicEnv.NEXT_PUBLIC_APP_URL;
 
   let message = "";
 

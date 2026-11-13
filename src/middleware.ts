@@ -1,70 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
-import { jwtVerify } from "jose";
-import { updateSession } from "@/utils/supabase/middleware";
+import { updateSession } from "@/lib/supabase/middleware";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "electrocba_super_secret_jwt_key_2026_cordoba"
-);
+const PROTECTED_PAGE_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
 
-const SESSION_COOKIE_NAME = "electrocba_session";
+const PUBLIC_API_EXACT = new Set([
+  "/api/payments/webhook",
+  "/api/health",
+  "/api/auth/logout",
+  "/api/auth/me",
+  "/api/payments/create-preference",
+]);
 
-// Rutas estrictamente protegidas que requieren autenticación
-const PROTECTED_PREFIXES = ["/dashboard", "/quotes", "/customers", "/jobs"];
+function isPublicApiRoute(pathname: string): boolean {
+  if (PUBLIC_API_EXACT.has(pathname)) {
+    return true;
+  }
+  // Exportación pública de presupuesto por publicToken (la ruta valida sesión o publicToken)
+  if (/^\/api\/quotes\/[^/]+\/export\/(pdf|docx)$/.test(pathname)) {
+    return true;
+  }
+  return false;
+}
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Actualizar sesión Supabase para persistencia de cookies en el cliente
-  const { response, user: supabaseUser } = await updateSession(req);
+  const { response, user: supabaseUser, appUser, dbError } = await updateSession(req);
+  const isAuthenticated = Boolean(supabaseUser && appUser && appUser.organizationId);
 
-  // Comprobar token legacy JWT si existe
-  const customToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  let hasValidCustomToken = false;
-  if (customToken) {
-    try {
-      await jwtVerify(customToken, JWT_SECRET);
-      hasValidCustomToken = true;
-    } catch {
-      hasValidCustomToken = false;
+  // 1. Protección por defecto para todas las rutas /api/* salvo lista blanca mínima
+  if (pathname.startsWith("/api/") || pathname === "/api") {
+    if (isPublicApiRoute(pathname)) {
+      return response;
     }
+
+    // Ante un error transitorio de base de datos en endpoints de API, devolver 503
+    if (dbError) {
+      return NextResponse.json(
+        { error: "Servicio temporalmente no disponible. Reintente en unos instantes." },
+        { status: 503 }
+      );
+    }
+
+    if (!isAuthenticated) {
+      return NextResponse.json(
+        { error: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
+    return response;
   }
 
-  const isAuthenticated = Boolean(supabaseUser) || hasValidCustomToken;
-
-  // Rutas públicas explícitas
-  if (
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/p/") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/payments") ||
-    pathname.includes("/export/") ||
-    pathname.startsWith("/payments") ||
-    pathname.startsWith("/_next") ||
-    pathname.includes(".") // static assets y favicon
-  ) {
-    // Si ya está logueado e intenta ir a /login, redirigir a /dashboard
-    if (pathname === "/login" && isAuthenticated) {
+  // 2. Ruta de login: si ya tiene sesión válida + fila User vinculada, redirigir al dashboard
+  if (pathname === "/login" || pathname.startsWith("/login/")) {
+    if (isAuthenticated) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
     return response;
   }
 
-  // Verificar si la ruta requiere autenticación
-  const isProtected = PROTECTED_PREFIXES.some(
+  // 3. Rutas públicas de páginas (ficha pública /p/[token], retorno de pago)
+  if (pathname.startsWith("/p/") || pathname.startsWith("/payments/")) {
+    return response;
+  }
+
+  // 4. Rutas protegidas de la aplicación
+  const isProtectedPage = PROTECTED_PAGE_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 
-  if (isProtected) {
-    if (!isAuthenticated) {
-      const loginUrl = new URL("/login", req.url);
-      loginUrl.searchParams.set("callbackUrl", pathname);
-      const redirectRes = NextResponse.redirect(loginUrl);
-      if (customToken && !hasValidCustomToken) {
-        redirectRes.cookies.delete(SESSION_COOKIE_NAME);
-      }
-      return redirectRes;
-    }
-    return response;
+  // Ante error transitorio en páginas, dejamos pasar al Server Component para que getSession() decida
+  if (isProtectedPage && !isAuthenticated && !dbError) {
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
   }
 
   return response;
@@ -72,6 +82,12 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    /*
+     * Excluir explícitamente:
+     * - _next/static (archivos estáticos)
+     * - _next/image (optimización de imágenes)
+     * - favicon.ico y archivos con extensiones de assets (png, jpg, jpeg, svg, ico, webp, json, txt, js, css, map)
+     */
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|json|txt|js|css|map)$).*)",
   ],
 };

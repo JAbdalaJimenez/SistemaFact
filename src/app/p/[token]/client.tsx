@@ -72,7 +72,7 @@ export function PublicQuoteClient({
   const remainingAmount = totalAmount - depositAmount;
 
   const baseUrl = origin || "http://localhost:3000";
-  const safeIdentifier = quoteId || publicToken || "";
+  const safeIdentifier = publicToken || quoteId || "";
   const publicUrl = publicToken ? `${baseUrl}/p/${publicToken}` : (safeIdentifier ? `${baseUrl}/p/${safeIdentifier}` : "#");
   const pdfDownloadUrl = safeIdentifier ? `${baseUrl}/api/quotes/${safeIdentifier}/export/pdf` : "#";
   const docxDownloadUrl = safeIdentifier ? `${baseUrl}/api/quotes/${safeIdentifier}/export/docx` : "#";
@@ -107,6 +107,7 @@ export function PublicQuoteClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quoteId,
+          publicToken,
           amount: depositAmount,
         }),
       });

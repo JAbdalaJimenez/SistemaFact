@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   FileText,
   Plus,
@@ -15,7 +16,10 @@ export const revalidate = 0;
 
 export default async function QuotesListPage() {
   const session = await getSession();
-  const orgId = session?.organizationId;
+  if (!session) {
+    redirect("/login?callbackUrl=/quotes");
+  }
+  const orgId = session.organizationId;
   const [quotes, org] = await Promise.all([
     getQuotes(orgId),
     getOrganization(orgId),

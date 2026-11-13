@@ -4,123 +4,123 @@
 
 ---
 
-## ⚡ Características Principales
+## Características Principales
 
 ### 1. Sistema de Autenticación y Multi-Tenancy (Seguridad & Roles)
-- **Autenticación Segura con JWT y Cookies HTTP-Only**: Implementada con algoritmo HS256 (`jose`) y passwords hasheadas con `bcryptjs`.
-- **Protección de Rutas por Middleware**: `src/middleware.ts` bloquea y redirige el acceso no autenticado a `/dashboard`, `/quotes/*`, `/customers/*` y `/jobs/*`.
-- **Aislamiento Multi-Tenant**: Consultas de base de datos particionadas estrictamente por `organizationId` obtenido de la sesión.
-- **Manejo de Roles**: Roles `OWNER` (Titular) y `MEMBER` (Técnico de cuadrilla) con credenciales de prueba listas para demostración.
+- **Autenticación centralizada con Supabase Auth (`@supabase/ssr`)**: Sesiones gestionadas mediante cookies seguras validadas en el servidor con `supabase.auth.getUser()`.
+- **Autorización y Roles en Base de Datos (`Prisma`)**: Los roles (`SUPERADMIN`, `OWNER`, `MEMBER`) y la pertenencia a la organización (`organizationId`) residen exclusivamente en la tabla `User` de PostgreSQL vinculada por `authUserId` (nunca en `user_metadata`).
+- **Aislamiento Multi-Tenant Estricto**: Todas las consultas de negocio filtran en el servidor por el `organizationId` de la sesión activa.
+- **Row-Level Security (RLS)**: Activado en todas las tablas del esquema `public` con política *deny-all* para los roles `anon` y `authenticated` de PostgREST.
 
 ### 2. Presupuestos y Contratos Formales (Normativa Córdoba y Argentina)
 - **Membrete Legal Habilitante**:
-  - Matrícula Habilitante ERSeP (Córdoba Cat. III - N° 14892).
-  - CUIT del instalador y condición frente al IVA (Monotributo - Servicios Técnicos Especializados).
+  - Matrícula Habilitante ERSeP (Ley Provincial N° 10.281).
+  - CUIT del instalador y condición frente al IVA.
   - Domicilio legal en Córdoba Capital.
-- **Discriminación de Partidas de Estilo Arquitectónico**:
+- **Discriminación de Partidas**:
   - **Mano de Obra Especializada**: Reglamentación AEA 90364, peinado de tableros en riel DIN, hincado de jabalinas y protocolo de medición.
-  - **Provisión de Materiales con Sello IRAM**: Componentes normalizados con marcas homologadas (Schneider Acti9, Sica, Prysmian, cables antillama IRAM NM 247-3).
+  - **Provisión de Materiales con Sello IRAM**: Componentes normalizados.
 - **Cláusulas Contractuales y Legales Incorporadas**:
-  - **Ley de Seguridad Eléctrica de Córdoba N° 10.281**: Emisión de Certificado de Instalación Eléctrica Apta.
-  - **Ley Nacional N° 24.240 de Defensa del Consumidor** (Arts. 11 y 21): Garantía legal escrita de 6 meses sobre mano de obra y componentes.
-  - **Cláusula Anti-Inflación**: Precios fijos por 15 días corridos.
-  - **Condiciones de Pago**: Seña inicial del 50% para reserva de fecha y acopio de materiales; saldo restante contra conformidad de obra.
-  - **Medios Habilitados**: Transferencia (Alias/CVU), Mercado Pago y efectivo con recibo oficial.
+  - **Ley de Seguridad Eléctrica de Córdoba N° 10.281**.
+  - **Ley Nacional N° 24.240 de Defensa del Consumidor** (Arts. 11 y 21).
+  - **Cláusula de Vigencia y Anti-Inflación**.
+  - **Condiciones de Pago**: Seña inicial del 50% y saldo contra conformidad de obra.
 
 ### 3. Motor Documental (PDF & DOCX), Vista Pública y WhatsApp
-- **Exportación a PDF Vectorial** (`GET /api/quotes/[id]/export/pdf`): Compilación directa en backend con `pdf-lib` con membrete formal, tablas separadas, recuadro normativo y espacio de firma y sello.
-- **Exportación a Word .DOCX** (`GET /api/quotes/[id]/export/docx`): Generación nativa con la librería `docx` con estilos corporativos y cláusulas editables.
-- **Ficha Técnica Pública Web sin Login** (`/p/[publicToken]`): Enlace criptográfico UUID para que el cliente revise el desglose en el móvil y abone la seña del 50% mediante **Mercado Pago Checkout Pro**.
-- **Integración con WhatsApp**: Botón de compartir con codificación URI y plantilla formal predefinida.
+- **Exportación a PDF Vectorial** (`GET /api/quotes/[id]/export/pdf`): Generación en servidor con `pdf-lib`.
+- **Exportación a Word .DOCX** (`GET /api/quotes/[id]/export/docx`): Generación con `docx`.
+- **Ficha Técnica Pública Web sin Login** (`/p/[publicToken]`): Enlace con token UUID para que el cliente revise el presupuesto y abone la seña mediante **Mercado Pago Checkout Pro**.
 
 ---
 
-## 🎨 Identidad Visual: Architectural Executive & Legal Tech
+## Configuración de Seguridad en Supabase (Obligatorio en Producción)
 
-- **Deep Obsidian (`#0F172A`)**: Color de poder en encabezados, superficies estructurales y botones primarios.
-- **Dark Slate (`#1E293B`)**: Bordes oscuros, texto de alta jerarquía y barras de navegación.
-- **Champagne Warm Gold (`#9A6E24` / `#C5A059`)**: Acento institucional para sellos ERSeP, líneas de precisión e importes totales destacados.
-- **Off-white Slate (`#F8FAFC`) y Tarjetas `#FFFFFF`**: Fondos neutros con bordes sutiles de 1px en `#E2E8F0`.
-- **Tipografía**: Plus Jakarta Sans con soporte de números tabulares (`tabular-nums`) para alineación contable de importes.
-
----
-
-## 🛠️ Stack Tecnológico
-
-- **Framework**: Next.js 15 (App Router, Server Actions, Route Handlers)
-- **Lenguaje**: TypeScript
-- **Estilos**: Tailwind CSS 3
-- **Base de Datos & ORM**: PostgreSQL + Prisma ORM
-- **Autenticación**: JWT criptográfico (`jose`), `bcryptjs`, Cookies HTTP-Only
-- **Pasarela de Pagos**: Mercado Pago SDK (Checkout Pro)
-- **Generación Documental**: `pdf-lib` (PDF vectorial) y `docx` (Word formal)
-- **Iconografía**: Lucide React
-- **Entorno de Contenedores**: Docker Compose (PostgreSQL 16 Alpine)
+1. **Deshabilitar el auto-registro público (Sign-Up)**:
+   - En el panel de Supabase -> **Authentication** -> **Providers** -> **Email**, desactivar la opción **"Allow new users to sign up"** (o restringir mediante Auth Hook).
+   - Las altas de usuarios se realizan únicamente por cuentas `SUPERADMIN` u `OWNER` desde `/dashboard/users` (que invoca `POST /api/users` con `SUPABASE_SERVICE_ROLE_KEY`).
+2. **Service Role Key**:
+   - La variable `SUPABASE_SERVICE_ROLE_KEY` **jamás** debe llevar el prefijo `NEXT_PUBLIC_`. Solo se utiliza en el servidor (`src/lib/supabase/admin.ts`).
 
 ---
 
-## 🚀 Instalación y Puesta en Marcha
+## Instalación y Puesta en Marcha
 
-### 1. Clonar el repositorio
-```bash
-git clone <URL_DEL_REPOSITORIO>
-cd sistemElectro
-```
-
-### 2. Instalar dependencias
+### 1. Instalar dependencias
 ```bash
 npm install
 ```
 
-### 3. Variables de Entorno
-Copiar el archivo de ejemplo:
+### 2. Variables de Entorno
+Copiar el archivo de ejemplo y completar con las credenciales reales del entorno:
 ```bash
-cp .env.example .env
-```
-Configurar en `.env`:
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/electrocba?schema=public"
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-MERCADO_PAGO_ACCESS_TOKEN="TEST-your-access-token"
-MERCADO_PAGO_PUBLIC_KEY="TEST-your-public-key"
+cp .env.example .env.local
 ```
 
-### 4. Iniciar PostgreSQL con Docker
+### 3. Aplicar migraciones y generar cliente Prisma
+
+> **Nota sobre `DIRECT_URL`**: Prisma Migrate requiere conexión directa a PostgreSQL (puerto 5432) sin pasar por el pooler de transacciones (puerto 6543). Asegúrese de configurar `DIRECT_URL` en su archivo `.env`.
+
+**En una base de datos nueva (vacía)**:
 ```bash
-docker compose up -d
+npx prisma migrate deploy
+npx prisma generate
 ```
 
-### 5. Sincronizar Base de Datos y Cargar Datos Iniciales (Seed)
+**En una base de datos existente (creada previamente con `db push` o `supabase_init.sql`)**:
+El orden obligatorio es marcar el baseline inicial y luego aplicar las migraciones incrementales:
+1. Marcar la migración baseline inicial como ya aplicada para que Prisma no intente recrear las tablas existentes:
+   ```bash
+   npx prisma migrate resolve --applied 20260101000000_baseline
+   ```
+2. Aplicar las migraciones incrementales posteriores (`add_auth_user_id_to_users`, `unique_mp_payment_id`, `add_mp_webhook_secret`, `enable_rls_all_tables`):
+   ```bash
+   npx prisma migrate deploy
+   npx prisma generate
+   ```
+
+### 4. Inicializar datos base en Desarrollo (Seed)
+El script de seed está bloqueado en producción (`NODE_ENV === "production"`) y exige `ALLOW_SEED_WIPE=true`, `SEED_SUPERADMIN_EMAIL` y `SEED_SUPERADMIN_PASSWORD`:
 ```bash
-npm run prisma:push
-npm run db:seed
+ALLOW_SEED_WIPE=true SEED_SUPERADMIN_PASSWORD="TuPasswordSeguro123!" npm run db:seed
 ```
 
-### 6. Iniciar Servidor de Desarrollo
+### 5. Migración de usuarios existentes a Supabase Auth
+Para vincular usuarios existentes en la tabla `users` que aún no posean `authUserId`:
+```bash
+# 1. Simulación sin cambios (dry-run)
+npx tsx scripts/migrate-users-to-supabase.ts --dry-run
+
+# 2. Ejecución real (imprime el host de DATABASE_URL y exige --yes; conserva el hash en password)
+npx tsx scripts/migrate-users-to-supabase.ts --yes
+
+# 3. Una vez verificado el login en Supabase Auth, limpiar los hashes legados de password
+npx tsx scripts/migrate-users-to-supabase.ts --finalize --yes
+```
+
+### 6. Configuración de Pasarela Mercado Pago por Organización
+Cada organización puede configurar sus propias credenciales en `/dashboard/settings`:
+- **Access Token**: Token de producción o prueba de la cuenta de Mercado Pago del instalador.
+- **Public Key**: Clave pública para inicializar componentes en el checkout frontend.
+- **Webhook Secret**: Secreto HMAC de firma de notificaciones provisto por el panel de desarrollador de Mercado Pago para esa app (se almacena cifrado con AES-256-GCM).
+
+En la URL de notificación de Mercado Pago (`notification_url`), el sistema envía `?orgId=<id>` para validar la firma HMAC con el secreto específico de la cuenta receptora.
+
+Para cifrar tokens o secretos existentes que se encuentren en texto plano en la base de datos:
+```bash
+# Simulación sin cambios (dry-run):
+npx tsx scripts/encrypt-existing-mp-tokens.ts
+
+# Ejecución real:
+npx tsx scripts/encrypt-existing-mp-tokens.ts --yes
+```
+
+### 7. Iniciar Servidor de Desarrollo
 ```bash
 npm run dev
 ```
-Abrir [http://localhost:3000](http://localhost:3000) en el navegador.
 
 ---
 
-## 👤 Credenciales de Demostración (Multi-Tenant)
-
-| Usuario | Correo | Contraseña | Rol | Organización |
-| :--- | :--- | :--- | :--- | :--- |
-| **Marcos Romero** | `marcos@electrocba.com.ar` | `electrocba2026` | `OWNER` | ElectroCba Servicios Eléctricos |
-| **Nicolás Gómez** | `tecnico@electrocba.com.ar` | `tecnico2026` | `MEMBER` | ElectroCba Servicios Eléctricos |
-
----
-
-## 📋 Enlaces Públicos de Demostración
-
-- **Ficha Técnica Camila Ferrero (Nueva Córdoba)**: [http://localhost:3000/p/cba-presupuesto-camila-01](http://localhost:3000/p/cba-presupuesto-camila-01)
-- **Descarga PDF Vectorial**: [http://localhost:3000/api/quotes/quote_camila_01/export/pdf](http://localhost:3000/api/quotes/quote_camila_01/export/pdf)
-- **Descarga Word (.docx)**: [http://localhost:3000/api/quotes/quote_camila_01/export/docx](http://localhost:3000/api/quotes/quote_camila_01/export/docx)
-
----
-
-## 📄 Licencia
+## Licencia
 
 Desarrollado para instaladores y profesionales técnicos electricistas de Córdoba, Argentina.

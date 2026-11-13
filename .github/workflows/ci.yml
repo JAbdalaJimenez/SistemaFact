@@ -1,0 +1,71 @@
+name: Security & Quality CI
+
+on:
+  push:
+    branches: [main, security/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Typecheck, Build & Security Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: electrocba
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+
+      - name: Verify Prisma Migrations against fresh PostgreSQL
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run automated test suite (Vitest)
+        run: npm test
+
+      - name: Production Next.js Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+          DIRECT_URL: postgresql://postgres:postgres@localhost:5432/electrocba
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_test_publishable_key_1234567890
+          SUPABASE_SERVICE_ROLE_KEY: sb_test_service_role_key_1234567890abcdef
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          MERCADO_PAGO_WEBHOOK_SECRET: test_webhook_secret_key_1234567890
+

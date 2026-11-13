@@ -3,6 +3,7 @@ import "./globals.css";
 import { AppNavigation } from "@/components/navigation";
 import { getSession } from "@/lib/auth";
 import { AuthProvider } from "@/context/auth-context";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "ElectroCba | SaaS para Electricistas y Técnicos de Córdoba",
@@ -61,6 +62,7 @@ export default async function RootLayout({
           <main className="flex-1 pb-24 sm:pb-12 max-w-5xl w-full mx-auto p-4 sm:p-6 animate-fade-in">
             {children}
           </main>
+          <Analytics />
         </AuthProvider>
       </body>
     </html>

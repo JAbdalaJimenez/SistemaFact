@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserRole {
@@ -67,6 +68,7 @@ model Organization {
   aliasCbu           String?   // Retrocompatibilidad
   mpAccessToken      String?   // Access Token de Mercado Pago (por tenant)
   mpPublicKey        String?   // Public Key de Mercado Pago (por tenant)
+  mpWebhookSecret    String?   // Secreto de Webhook de Mercado Pago (por tenant, cifrado)
   logoUrl            String?   // URL o path del logotipo profesional
   signatureUrl       String?   // Firma digital en formato DataURL base64 (PNG transparente)
   email              String?   // Email profesional de contacto
@@ -86,10 +88,12 @@ model Organization {
 
 model User {
   id             String       @id @default(cuid())
+  authUserId     String?      @unique @db.Uuid
   organizationId String
   name           String
   email          String       @unique
-  password       String       @default("$2a$10$abcdefghijklmnopqrstuvwxyz1234567890") // Hash bcrypt
+  /// @deprecated Las credenciales residen en Supabase Auth (auth.users).
+  password       String?
   role           UserRole     @default(OWNER)
   phone          String?
   createdAt      DateTime     @default(now())
@@ -217,7 +221,7 @@ model Payment {
   amount         Int           // Monto cobrado en ARS
   paymentMethod  PaymentMethod // CASH, TRANSFER, MERCADO_PAGO
   status         PaymentStatus @default(APPROVED)
-  mpPaymentId    String?       // ID de transacción retornado por Mercado Pago
+  mpPaymentId    String?       @unique // ID de transacción retornado por Mercado Pago (idempotencia en DB)
   mpPreferenceId String?       // ID de preferencia generada
   notes          String?       // ej: "Seña 50%", "Transferencia CBU / Comprobante #9412"
   createdAt      DateTime      @default(now())

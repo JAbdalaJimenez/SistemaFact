@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { redirect } from "next/navigation";
 import {
   FileText,
   Briefcase,
@@ -21,7 +21,8 @@ export const revalidate = 0; // Datos frescos en cada solicitud
 
 export default async function DashboardPage() {
   const session = await getSession();
-  const orgId = session?.organizationId;
+  if (!session) redirect("/login?callbackUrl=/dashboard");
+  const orgId = session.organizationId;
   const [metrics, org] = await Promise.all([
     getDashboardMetrics(orgId),
     getOrganization(orgId),
